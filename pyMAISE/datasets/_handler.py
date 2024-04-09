@@ -408,8 +408,8 @@ def load_loca(stack_series=False):
             },
         )
         return nominal_data, perturbed_data
-    
-    
+
+
 def load_anomaly(path, stack_series, multiclass, propagate_output):
     """
     Process the raw data for binary or multiclass classification.
@@ -421,70 +421,111 @@ def load_anomaly(path, stack_series, multiclass, propagate_output):
 
     Returns:
     - Y_processed (numpy.ndarray): The processed labels for classification.
-        """
-    #system='RFQ'  #pick a system to load and plot. Choose RFQ, DTL, CCL, or SCL
-   # n = np.load('%s_labels.npy'%system, allow_pickle=True)
-    
+    """
+    # system='RFQ'  #pick a system to load and plot. Choose RFQ, DTL, CCL, or SCL
+    # n = np.load('%s_labels.npy'%system, allow_pickle=True)
+
     # Load the data
     X = np.load(path[0])
     Y = np.load(path[1], allow_pickle=True)
-    Y = Y[:, 1:] #Remove Filepath
+    Y = Y[:, 1:]  # Remove Filepath
     if multiclass:
-        Y_df = pd.DataFrame(Y, columns=['state', 'type'])
+        Y_df = pd.DataFrame(Y, columns=["state", "type"])
         Y_processed = Y_df.to_numpy()
-        Y_processed = np.where(Y_processed[:, 0] == 'Run', 1, 0)
-            # Relabeling script
+        Y_processed = np.where(Y_processed[:, 0] == "Run", 1, 0)
+        # Relabeling script
         Y_relab = Y_df.copy()
         for i in range(Y_df.shape[0]):
-                if Y_df.iloc[i,1] == 'Normal':
-                    pass
-                elif 'IGBT' in Y_df.iloc[i,1]:
-                    Y_relab.iloc[i,1] = 'IGBT Fault'
-                elif 'CB' in Y_df.iloc[i,1] or 'CapBank' in Y_df.iloc[i,1] or 'TPS' in Y_df.iloc[i,1]:
-                    Y_relab.iloc[i,1] = 'CB or TPS Fault'
-                elif 'Driver' in Y_df.iloc[i,1]:
-                    Y_relab.iloc[i,1] = 'Driver Fault'
-                elif 'FLUX' in Y_df.iloc[i,1] or 'Flux' in Y_df.iloc[i,1]:
-                    Y_relab.iloc[i,1] = 'Flux Fault' 
-                elif 'DV/DT' in Y_df.iloc[i,1]:
-                    Y_relab.iloc[i,1] = 'DV/DT Fault' 
-                elif 'SCR' in Y_df.iloc[i,1]:
-                    Y_relab.iloc[i,1] = 'SCR AC Input Fault'
+            if Y_df.iloc[i, 1] == "Normal":
+                pass
+            elif "IGBT" in Y_df.iloc[i, 1]:
+                Y_relab.iloc[i, 1] = "IGBT Fault"
+            elif (
+                "CB" in Y_df.iloc[i, 1]
+                or "CapBank" in Y_df.iloc[i, 1]
+                or "TPS" in Y_df.iloc[i, 1]
+            ):
+                Y_relab.iloc[i, 1] = "CB or TPS Fault"
+            elif "Driver" in Y_df.iloc[i, 1]:
+                Y_relab.iloc[i, 1] = "Driver Fault"
+            elif "FLUX" in Y_df.iloc[i, 1] or "Flux" in Y_df.iloc[i, 1]:
+                Y_relab.iloc[i, 1] = "Flux Fault"
+            elif "DV/DT" in Y_df.iloc[i, 1]:
+                Y_relab.iloc[i, 1] = "DV/DT Fault"
+            elif "SCR" in Y_df.iloc[i, 1]:
+                Y_relab.iloc[i, 1] = "SCR AC Input Fault"
         for i in range(Y_relab.shape[0]):
-                if Y_relab.iloc[i,1] not in ['Normal', 'Fiber Fault', 'DV/DT Fault', 'SCR AC Input Fault', 
-                                              'Driver Fault', 'SNS PPS Missing', 'Flux Fault', 'CB or TPS Fault']:
-                    Y_relab.iloc[i,1] = 'Misc/Unknown'
+            if Y_relab.iloc[i, 1] not in [
+                "Normal",
+                "Fiber Fault",
+                "DV/DT Fault",
+                "SCR AC Input Fault",
+                "Driver Fault",
+                "SNS PPS Missing",
+                "Flux Fault",
+                "CB or TPS Fault",
+            ]:
+                Y_relab.iloc[i, 1] = "Misc/Unknown"
         Y_processed = Y_relab.to_numpy()
         Y_processed = Y_processed[:, 1:]
 
     else:
         # Binary classification: Convert 'Run' to 1 and 'Fault' to 0
-        Y_processed = Y[:, :-1]  
-       # Y_processed[:, 0] = (np.where(Y_processed[:, 0] == 'Run', 1, 0)).astype(int)#Change run/fail str to 1/0 int
+        Y_processed = Y[:, :-1]
 
     if not stack_series:
-            if not multiclass:
-                    if not propagate_output:
-                        Y_processed = Y_processed
-               # adds timestamp Y_processed = np.repeat(Y_processed[:, np.newaxis, :], X.shape[1], axis=1)
-                    elif propagate_output:
-                        Y_processed = np.repeat(Y_processed[:, np.newaxis, :], X.shape[1], axis=1)
-            elif multiclass:
-                    if not propagate_output:
-                        Y_processed = Y_processed
-               # adds timestamp Y_processed = np.repeat(Y_processed[:, np.newaxis, :], X.shape[1], axis=1)
-                    elif propagate_output:
-                        Y_processed = np.repeat(Y_processed[:, np.newaxis, :], X.shape[1], axis=1)
+        if not multiclass:
+            if not propagate_output:
+                Y_processed = Y_processed
+            elif propagate_output:
+                Y_processed = np.repeat(
+                    Y_processed[:, np.newaxis, :], X.shape[1], axis=1
+                )
+        elif multiclass:
+            if not propagate_output:
+                Y_processed = Y_processed
+            elif propagate_output:
+                Y_processed = np.repeat(
+                    Y_processed[:, np.newaxis, :], X.shape[1], axis=1
+                )
     elif stack_series:
         if not propagate_output:
-            raise ValueError("Error: propagate_output must be True when stack_series is True")
-        elif propagate_output:        
+            raise ValueError(
+                "Error: propagate_output must be True when stack_series is True"
+            )
+        elif propagate_output:
             Y_expanded = np.repeat(Y_processed[:, np.newaxis, :], X.shape[1], axis=1)
             Y_processed = Y_expanded.reshape(-1, Y_expanded.shape[2])
             X = X.reshape(-1, X.shape[2])
-        
-    #print("X shape:", X.shape)
-    
-    X_dataarray = xr.DataArray(X)
-    Y_dataarray = xr.DataArray(Y_processed)
-    return X_dataarray, Y_dataarray 
+
+    # print("X shape:", X.shape)
+    input_col_names = [
+        "A+IGBT-I: current",
+        "A+*IGBT-I: current",
+        "B+IGBT-I: current",
+        "B+*IGBT-I: current",
+        "C+IGBT-I: current",
+        "C+*IGBT-I: current",
+        "A-Flux",
+        "B-Flux",
+        "C-Flux",
+        "Mod-V",
+        "Mod-I",
+        "CB-I",
+        "CB-V",
+        "DV/DT",
+    ]
+
+    output_col_names = ["Class"]
+
+    X_dataarray = xr.DataArray(
+        X, coords={"timesteps": np.arange(X.shape[0]), "features": input_col_names}
+    )
+    Y_dataarray = xr.DataArray(
+        Y_processed,
+        coords={
+            "timesteps": np.arange(Y_processed.shape[0]),
+            "features": output_col_names,
+        },
+    )
+    return X_dataarray, Y_dataarray
