@@ -22,7 +22,7 @@ setup(
         "numpy<1.24",
         "scikit-learn",
         "scikit-optimize==0.9.0",
-        "keras>=2.12.0",
+        "keras>=2.14.0",
         "tensorflow>=2.12.0",
         "keras-tuner",
         "xarray==2023.10.1",

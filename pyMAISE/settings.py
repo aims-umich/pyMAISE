@@ -66,14 +66,6 @@ class Settings:
             os.environ["TF_DETERMINISTIC_OPS"] = "1"
             os.environ["TF_CUBNN_DETERMINISTIC"] = "1"
 
-            session_conf = tf.compat.v1.ConfigProto(
-                intra_op_parallelism_threads=1, inter_op_parallelism_threads=1
-            )
-            sess = tf.compat.v1.Session(
-                graph=tf.compat.v1.get_default_graph(), config=session_conf
-            )
-            tf.compat.v1.keras.backend.set_session(sess)
-
     # Getters
     @property
     def problem_type(self) -> ProblemType:
