@@ -410,95 +410,91 @@ def load_loca(stack_series=False):
         return nominal_data, perturbed_data
 
 
-def load_anomaly(path, stack_series, multiclass, propagate_output):
+def load_anomaly(
+    input_path,
+    output_path,
+    stack_series=False,
+    multiclass=False,
+    propagate_output=False,
+    non_faulty_frac=1.0,
+):
     """
     Process the raw data for binary or multiclass classification.
 
-    Args:
-    - path (str): Path to the raw data file.
-    - stack_series (bool): Whether the pulses should be stacked (3D or 2D).
-    - multiclass (bool): Whether to return the binary or multiclass classification.
-
-    Returns:
-    - Y_processed (numpy.ndarray): The processed labels for classification.
+    Parameters
+    ----------
+    input_path: str
+        Path to input file.
+    output_path: str
+        Path to output file.
+    stack_series: bool, default=False
+        If true, then the samples and time steps dimensions are combined.
+        ``propagate_output`` must be true for ``stack_series`` to be true.
+    multiclass: bool, default=False
+        If true, then the multiclass case is returned with 8 possible
+        classifications: ``Normal``, ``IGBT Fault``, `` CBor TPS Fault``,
+        ``Driver Fault``, ``Flux Fault``, ``DV/DT Fault``,
+        ``SCR AC Input Fault``, or ``Misc/Unknown``. If this is false then
+        the binary class is returned (``Run`` or ``Fault``).
+    non_faulty_frac: float, default=1.0
+        The fraction of non-faulty data to include.
     """
-    # system='RFQ'  #pick a system to load and plot. Choose RFQ, DTL, CCL, or SCL
-    # n = np.load('%s_labels.npy'%system, allow_pickle=True)
-
     # Load the data
-    X = np.load(path[0])
-    Y = np.load(path[1], allow_pickle=True)
-    Y = Y[:, 1:]  # Remove Filepath
+    X = np.load(input_path)
+    Y = np.load(
+        output_path,
+        allow_pickle=True,
+    ).astype(
+        str
+    )[:, 1:]
+
+    # Get desired fraction of non-faulty pulses
+    run_idxs = np.argwhere(Y[:, 0] == "Run").flatten()
+    faulty_idxs = np.argwhere(Y[:, 0] == "Fault").flatten()
+    frac_run_idxs = np.random.choice(
+        run_idxs, size=int(run_idxs.size * non_faulty_frac), replace=False
+    )
+    idxs = np.sort(np.concatenate((faulty_idxs, frac_run_idxs), axis=0))
+
+    X = X[idxs,]
+    Y = Y[idxs,]
+
     if multiclass:
-        Y_df = pd.DataFrame(Y, columns=["state", "type"])
-        Y_processed = Y_df.to_numpy()
-        Y_processed = np.where(Y_processed[:, 0] == "Run", 1, 0)
-        # Relabeling script
-        Y_relab = Y_df.copy()
-        for i in range(Y_df.shape[0]):
-            if Y_df.iloc[i, 1] == "Normal":
-                pass
-            elif "IGBT" in Y_df.iloc[i, 1]:
-                Y_relab.iloc[i, 1] = "IGBT Fault"
-            elif (
-                "CB" in Y_df.iloc[i, 1]
-                or "CapBank" in Y_df.iloc[i, 1]
-                or "TPS" in Y_df.iloc[i, 1]
-            ):
-                Y_relab.iloc[i, 1] = "CB or TPS Fault"
-            elif "Driver" in Y_df.iloc[i, 1]:
-                Y_relab.iloc[i, 1] = "Driver Fault"
-            elif "FLUX" in Y_df.iloc[i, 1] or "Flux" in Y_df.iloc[i, 1]:
-                Y_relab.iloc[i, 1] = "Flux Fault"
-            elif "DV/DT" in Y_df.iloc[i, 1]:
-                Y_relab.iloc[i, 1] = "DV/DT Fault"
-            elif "SCR" in Y_df.iloc[i, 1]:
-                Y_relab.iloc[i, 1] = "SCR AC Input Fault"
-        for i in range(Y_relab.shape[0]):
-            if Y_relab.iloc[i, 1] not in [
-                "Normal",
-                "Fiber Fault",
-                "DV/DT Fault",
-                "SCR AC Input Fault",
-                "Driver Fault",
-                "SNS PPS Missing",
-                "Flux Fault",
-                "CB or TPS Fault",
-            ]:
-                Y_relab.iloc[i, 1] = "Misc/Unknown"
-        Y_processed = Y_relab.to_numpy()
-        Y_processed = Y_processed[:, 1:]
+        multiclass_labels = {
+            "IGBT Fault": ["IGBT"],
+            "CB or TPS Fault": ["CB", "CapBank", "TPS"],
+            "Driver Fault": ["Driver"],
+            "Flux Fault": ["Flux", "FLUX"],
+            "DV/DT Fault": ["DV/DT"],
+            "SCR AC Input Fault": ["SCR"],
+        }
 
-    else:
-        # Binary classification: Convert 'Run' to 1 and 'Fault' to 0
-        Y_processed = Y[:, :-1]
+        # Rename cadidates to class labels
+        for label, options in multiclass_labels.items():
+            for option in options:
+                Y[
+                    np.argwhere(np.char.find(Y[:, -1], option) != -1).flatten(), 1
+                ] = label
 
-    if not stack_series:
-        if not multiclass:
-            if not propagate_output:
-                Y_processed = Y_processed
-            elif propagate_output:
-                Y_processed = np.repeat(
-                    Y_processed[:, np.newaxis, :], X.shape[1], axis=1
-                )
-        elif multiclass:
-            if not propagate_output:
-                Y_processed = Y_processed
-            elif propagate_output:
-                Y_processed = np.repeat(
-                    Y_processed[:, np.newaxis, :], X.shape[1], axis=1
-                )
-    elif stack_series:
-        if not propagate_output:
-            raise ValueError(
-                "Error: propagate_output must be True when stack_series is True"
-            )
-        elif propagate_output:
-            Y_expanded = np.repeat(Y_processed[:, np.newaxis, :], X.shape[1], axis=1)
-            Y_processed = Y_expanded.reshape(-1, Y_expanded.shape[2])
-            X = X.reshape(-1, X.shape[2])
+        # Change all other failures to unknown
+        for i in range(Y.shape[0]):
+            unknown = True
 
-    # print("X shape:", X.shape)
+            for label in ["Normal"] + list(multiclass_labels.keys()):
+                if Y[i, 1] == label:
+                    unknown = False
+                    break
+
+            if unknown:
+                Y[i, 1] = "Misc/Unknown"
+
+    Y = Y[:, [int(multiclass)]]
+
+    if propagate_output:
+        Y = np.transpose(
+            np.broadcast_to(Y[..., None], Y.shape + (X.shape[1],)), axes=(0, 2, 1)
+        )
+
     input_col_names = [
         "A+IGBT-I: current",
         "A+*IGBT-I: current",
@@ -516,16 +512,55 @@ def load_anomaly(path, stack_series, multiclass, propagate_output):
         "DV/DT",
     ]
 
-    output_col_names = ["Class"]
+    # If stack_series we combine samples and time steps dimensions
+    if stack_series:
+        if propagate_output is False:
+            raise RuntimeError("propagate_output must be True if stack_series is True")
 
-    X_dataarray = xr.DataArray(
-        X, coords={"timesteps": np.arange(X.shape[0]), "features": input_col_names}
-    )
-    Y_dataarray = xr.DataArray(
-        Y_processed,
-        coords={
-            "timesteps": np.arange(Y_processed.shape[0]),
-            "features": output_col_names,
-        },
-    )
-    return X_dataarray, Y_dataarray
+        X = X.reshape((-1, X.shape[-1]))
+        Y = Y.reshape((-1, Y.shape[-1]))
+
+        inputs = xr.DataArray(
+            X,
+            coords={
+                "time steps": np.arange(X.shape[0]),
+                "features": input_col_names,
+            },
+        )
+        outputs = xr.DataArray(
+            Y,
+            coords={
+                "time steps": np.arange(Y.shape[0]),
+                "features": ["Class"],
+            },
+        )
+
+        return inputs, outputs
+
+    else:
+        inputs = xr.DataArray(
+            X,
+            coords={
+                "samples": np.arange(X.shape[0]),
+                "time steps": np.arange(X.shape[1]),
+                "features": input_col_names,
+            },
+        )
+
+        outputs = xr.DataArray(
+            Y,
+            coords=(
+                {
+                    "samples": np.arange(Y.shape[0]),
+                    "time steps": np.arange(Y.shape[1]),
+                    "features": ["Class"],
+                }
+                if propagate_output
+                else {
+                    "samples": np.arange(Y.shape[0]),
+                    "features": ["Class"],
+                }
+            ),
+        )
+
+        return inputs, outputs
