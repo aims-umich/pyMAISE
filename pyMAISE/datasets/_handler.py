@@ -419,7 +419,7 @@ def load_anomaly(
     non_faulty_frac=1.0,
 ):
     """
-    Process the raw data for binary or multiclass classification.
+    <Discuss data set>
 
     Parameters
     ----------
