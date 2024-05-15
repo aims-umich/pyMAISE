@@ -417,6 +417,7 @@ def load_anomaly(
     multiclass=False,
     propagate_output=False,
     non_faulty_frac=1.0,
+    timestep_step=1,
 ):
     """
     <Discuss data set>
@@ -438,9 +439,12 @@ def load_anomaly(
         the binary class is returned (``Run`` or ``Fault``).
     non_faulty_frac: float, default=1.0
         The fraction of non-faulty data to include.
+    timestep_step: int, default=1
+        Time steps are taken every other ``timestep_step``. When
+        ``timestep_step == 1`` all timesteps are given.
     """
     # Load the data
-    X = np.load(input_path)
+    X = np.load(input_path)[:, ::timestep_step, :]
     Y = np.load(
         output_path,
         allow_pickle=True,
