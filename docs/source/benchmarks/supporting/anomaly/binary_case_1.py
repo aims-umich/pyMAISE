@@ -1,23 +1,14 @@
-
 """
 binary_case_1.py.
 
-inputs  (samples, time steps, features)
-outputs (samples, labels)
-
-TODO:
-- Save convergence plot to ./figs/
-- Add further hyperparameter tuning to LSTM
-- Add GRU
-
-See how non_faulty_frac and timestep_step change the results.
-Increase number of trials and cross-validation splits once
-you're feeling good about everything.
+Script for hyperparameter tuning LSTM and GRU using 3D data.
 """
 
 import pickle
 from sklearn.model_selection import TimeSeriesSplit
 
+import numpy as np
+import matplotlib.pyplot as plt
 import pyMAISE as mai
 import settings
 from preprocessing import load_anomaly_data
@@ -41,55 +32,39 @@ xtrain, xtest, ytrain, ytest, _ = load_anomaly_data(
     timestep_step=1,
 )
 
-
-
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-frequency = np.sum(ytrain, axis=0)
-
-# Categories
-categories = ['Fault', 'NonFault']
-
-# Plot
-plt.bar(categories, frequency)
-plt.title('Frequency of One-Hot Fault/Non Fault')
-plt.xlabel('Categories')
-plt.ylabel('Frequency')
-plt.ticklabel_format(style='plain', axis='y')
-plt.show()
-ytrain
-
-
-
-
-
+# Plot label frequency
+plt.clf()
+plt.bar(["Fault", "Run"], np.sum(np.concatenate([ytrain, ytest], axis=0), axis=0))
+plt.title("Frequency of One-Hot Fault/Non Fault")
+plt.xlabel("Categories")
+plt.ylabel("Frequency")
+plt.ticklabel_format(style="plain", axis="y")
+plt.savefig("./figs/bc1_frequency.png", dpi=300)
 
 # Model initialization
 lstm_structure = {
     "LSTM_input": {
-        "units": mai.Int(min_value = 25,max_value = 75),
+        "units": mai.Int(min_value=25, max_value=150),
         "input_shape": xtrain.shape[1:],
         "activation": "tanh",
         "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "LSTM": {
-        "num_layers": mai.Int(0, 3),
-        "units": mai.Int(min_value = 25,max_value = 75),
+        "num_layers": mai.Int(0, 4),
+        "units": mai.Int(min_value=25, max_value=150),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "LSTM_output": {
-        "units": mai.Int(min_value = 25,max_value = 75),
+        "units": mai.Int(min_value=25, max_value=150),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
     },
     "Dense": {
-        "num_layers": mai.Int(0, 3),
-        "units": mai.Int(min_value = 25,max_value = 75),
+        "num_layers": mai.Int(0, 4),
+        "units": mai.Int(min_value=25, max_value=250),
         "activation": "relu",
     },
     "Dense_output": {
@@ -98,30 +73,29 @@ lstm_structure = {
     },
 }
 
-
 gru_structure = {
     "GRU_input": {
-        "units":  mai.Int(min_value = 25,max_value = 75),
+        "units": mai.Int(min_value=25, max_value=150),
         "input_shape": xtrain.shape[1:],
         "activation": "tanh",
         "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "GRU": {
-        "num_layers": mai.Int(0, 3),
-        "units": mai.Int(min_value = 25,max_value = 75),
+        "num_layers": mai.Int(0, 4),
+        "units": mai.Int(min_value=25, max_value=150),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "GRU_output": {
-        "units": mai.Int(min_value = 25,max_value = 75),
+        "units": mai.Int(min_value=25, max_value=150),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
     },
     "Dense": {
-        "num_layers": mai.Int(0, 3),
-        "units": mai.Int(min_value = 25,max_value = 75),
+        "num_layers": mai.Int(0, 4),
+        "units": mai.Int(min_value=25, max_value=250),
         "activation": "relu",
     },
     "Dense_output": {
@@ -135,33 +109,40 @@ model_settings = {
     "LSTM": {
         "structural_params": lstm_structure,
         "optimizer": "Adam",
-        "Adam": {"learning_rate": mai.Float(1e-5, 0.001)},
+        "Adam": {
+            "learning_rate": mai.Float(1e-5, 0.001),
+            "clipnorm": mai.Float(0.8, 1.2),
+            "clipvalue": mai.Float(0.3, 0.7),
+        },
         "compile_params": {
             "loss": "binary_crossentropy",
             "metrics": ["accuracy"],
         },
         "fitting_params": {
-            "batch_size": mai.Choice([32, 64, 128]),
-            "epochs": 2,
+            "batch_size": mai.Choice([16, 32, 64]),
+            "epochs": 5,
             "validation_split": 0.15,
         },
     },
     "GRU": {
         "structural_params": lstm_structure,
         "optimizer": "Adam",
-        "Adam": {"learning_rate": mai.Float(1e-5, 0.001)},
+        "Adam": {
+            "learning_rate": mai.Float(1e-5, 0.001),
+            "clipnorm": mai.Float(0.8, 1.2),
+            "clipvalue": mai.Float(0.3, 0.7),
+        },
         "compile_params": {
             "loss": "binary_crossentropy",
             "metrics": ["accuracy"],
         },
         "fitting_params": {
-            "batch_size": mai.Choice([32, 64, 128]),
-            "epochs": 2,
+            "batch_size": mai.Choice([16, 32, 64]),
+            "epochs": 5,
             "validation_split": 0.15,
         },
     },
 }
-
 tuner = mai.Tuner(xtrain, ytrain, model_settings=model_settings)
 
 # Hyperparameter tuning
@@ -171,58 +152,12 @@ configs = tuner.nn_bayesian_search(
     cv=TimeSeriesSplit(n_splits=2),
 )
 
-
-
-
-data_to_save = {
-    'xtrain': xtrain,
-    'ytrain': ytrain,
-    'xtest': xtest,
-    'ytest': ytest,
-}
-
-with open("/home/jacc/pyMAISE/docs/source/benchmarks/supporting/anomaly/configs/data_file.pkl", "wb") as f:
-    pickle.dump(data_to_save, f)
-
-
-
-
-
-
-
-
-
-
-
 # Save results to pickle
-with open("/home/jacc/pyMAISE/docs/source/benchmarks/supporting/anomaly/configs/binary_case_1.pkl", "wb") as f:
+with open("configs/binary_case_1.pkl", "wb") as f:
     pickle.dump(configs, f)
 
-
-
-
-
-ax = tuner.convergence_plot(model_types="LSTM")
-ax.set_ylim([0, 1])
-
-
-
-file_path = "/home/jacc/pyMAISE/docs/source/benchmarks/supporting/anomaly/configs/convergence_plot_lstm.png"
-
-
-ax.figure.savefig(file_path)
-
-
-plt.close(ax.figure)
-
-
-ax = tuner.convergence_plot(model_types="GRU")
-ax.set_ylim([0, 1])
-
-
-
-file_path = "/home/jacc/pyMAISE/docs/source/benchmarks/supporting/anomaly/configs/convergence_plot_gru.png"
-
-ax.figure.savefig(file_path)
-
-plt.close(ax.figure)
+# Plot convergence
+plt.clf()
+tuner.convergence_plot()
+plt.ylim([0, 1])
+plt.savefig("./figs/bc1_convergence.png", dpi=300)

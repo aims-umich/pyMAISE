@@ -282,13 +282,13 @@ class PostProcessor:
             return math.sqrt(mean_squared_error(y_true, y_pred))
 
         def mai_recall_score(y_true, y_pred):
-            return recall_score(y_true, y_pred, average="micro")
+            return recall_score(y_true, y_pred, average="macro")
 
         def mai_precision_score(y_true, y_pred):
-            return precision_score(y_true, y_pred, average="micro")
+            return precision_score(y_true, y_pred, average="macro")
 
         def mai_f1_score(y_true, y_pred):
-            return f1_score(y_true, y_pred, average="micro")
+            return f1_score(y_true, y_pred, average="macro")
 
         # Get the list of y if not provided
         num_outputs = self._ytrain.shape[-1]
