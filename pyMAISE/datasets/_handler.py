@@ -410,7 +410,8 @@ def load_loca(stack_series=False):
         return nominal_data, perturbed_data
 
 
-def load_anomaly(
+def 
+omaly(
     input_path,
     output_path,
     stack_series=False,
@@ -419,8 +420,18 @@ def load_anomaly(
     non_faulty_frac=1.0,
     timestep_step=1,
 ):
+    
     """
-    <Discuss data set>
+    Load time series electronic signal data from particle accelerator power systems. This data comes from
+    :cite:`https://doi.org/10.1016/j.dib.2022.108473.` The DTL dataset is used, and consists of 4500 time-independent
+    features that describe faulty or normal wave pulses in the Oak Ridge partical accelerator, which are
+    propagated out in time. There are three outputs for load_anomaly.
+    - ``Fault``: Failiure of the accelerator
+    - ``Normal``: Working pulse of the accelerator
+    - ``Fault Type``: Type of fault of the accelerator
+    If binary classification, the ``Fault Type`` is removed.
+    
+
 
     Parameters
     ----------
