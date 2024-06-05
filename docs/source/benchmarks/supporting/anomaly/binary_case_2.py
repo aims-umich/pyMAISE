@@ -151,7 +151,7 @@ cnn_lstm_structure = {
 }
 
 model_settings = {
-    "models": ["CNN_LSTM"],
+    "models": ["CNN-LSTM"],
     "LSTM": {
         "structural_params": lstm_structure,
         "optimizer": "Adam",
@@ -188,7 +188,7 @@ model_settings = {
             "validation_split": 0.15,
         },
     },
-    "CNN_LSTM": {
+    "CNN-LSTM": {
         "structural_params": cnn_lstm_structure,
         "optimizer": "Adam",
         "Adam": {
@@ -227,4 +227,3 @@ plt.clf()
 tuner.convergence_plot()
 plt.ylim([0, 1])
 plt.savefig("./figs/bc2_convergence.png", dpi=300)
-#####
