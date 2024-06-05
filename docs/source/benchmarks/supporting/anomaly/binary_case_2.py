@@ -5,12 +5,14 @@ Script for hyperparameter tuning LSTM and GRU using 3D data.
 """
 
 import pickle
-from sklearn.model_selection import TimeSeriesSplit
-import numpy as np
+
 import matplotlib.pyplot as plt
-import pyMAISE as mai
+import numpy as np
 import settings
 from preprocessing import load_anomaly_data, split_sequences
+from sklearn.model_selection import TimeSeriesSplit
+
+import pyMAISE as mai
 
 print("\nBinary case 2")
 
@@ -32,7 +34,6 @@ data = load_anomaly_data(
 )
 
 
-
 # Combine data and create rolling windows using SplitSequence
 xtrain, xtest, ytrain, ytest = split_sequences(
     data=data[:-1],
@@ -50,6 +51,7 @@ plt.ylabel("Frequency")
 plt.ticklabel_format(style="plain", axis="y")
 plt.savefig("./figs/bc2_frequency.png", dpi=300)
 
+# NN structure
 lstm_structure = {
     "LSTM_input": {
         "units": mai.Int(min_value=25, max_value=150),
@@ -115,14 +117,14 @@ gru_structure = {
 cnn_lstm_structure = {
     "Conv1D_input": {
         "filters": mai.Int(min_value=32, max_value=128),
-        "kernel_size": mai.Int(min_value=2, max_value=5),
+        "kernel_size": 3,
         "activation": "relu",
         "input_shape": xtrain.shape[1:],
     },
     "Conv1D": {
         "num_layers": mai.Int(0, 4),
         "filters": mai.Int(min_value=32, max_value=128),
-        "kernel_size": mai.Int(min_value=2, max_value=5),
+        "kernel_size": 3,
         "activation": "relu",
     },
     "LSTM": {
@@ -149,8 +151,8 @@ cnn_lstm_structure = {
 }
 
 model_settings = {
-    "models": ["CNN_LSTM"],
-    "LSTM": {
+    "models": ["CNN-LSTM"],
+    "LSTM": 
         "structural_params": lstm_structure,
         "optimizer": "Adam",
         "Adam": {
@@ -163,7 +165,7 @@ model_settings = {
             "metrics": ["accuracy"],
         },
         "fitting_params": {
-            "batch_size": mai.Choice([8, 16, 32]),
+            "batch_size": mai.Choice([32, 64, 128]),
             "epochs": 5,
             "validation_split": 0.15,
         },
@@ -181,12 +183,12 @@ model_settings = {
             "metrics": ["accuracy"],
         },
         "fitting_params": {
-            "batch_size": mai.Choice([8, 16, 32]),
+            "batch_size": mai.Choice([32, 64, 128]),
             "epochs": 5,
             "validation_split": 0.15,
         },
     },
-    "CNN_LSTM": {
+    "CNN-LSTM": {
         "structural_params": cnn_lstm_structure,
         "optimizer": "Adam",
         "Adam": {
@@ -199,7 +201,7 @@ model_settings = {
             "metrics": ["accuracy"],
         },
         "fitting_params": {
-            "batch_size": mai.Choice([8, 16, 32]),
+            "batch_size": mai.Choice([32, 64, 128]),
             "epochs": 5,
             "validation_split": 0.15,
         },
@@ -212,15 +214,15 @@ tuner = mai.Tuner(xtrain, ytrain, model_settings=model_settings)
 # Hyperparameter tuning
 configs = tuner.nn_bayesian_search(
     objective="accuracy_score",
-    max_trials=2,
+    max_trials=50,
     cv=TimeSeriesSplit(n_splits=5),
 )
 
 # Save results to pickle
 with open("./configs/binary_case_2.pkl", "wb") as f:
     pickle.dump(configs, f)
+
 # Plot convergence
 plt.clf()
 tuner.convergence_plot()
 plt.ylim([0, 1])
-plt.savefig("./figs/bc1_convergence.png", dpi=300)
