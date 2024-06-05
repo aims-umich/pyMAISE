@@ -117,14 +117,14 @@ gru_structure = {
 cnn_lstm_structure = {
     "Conv1D_input": {
         "filters": mai.Int(min_value=32, max_value=128),
-        "kernel_size": 3,
+        "kernel_size": mai.Int(min_value=2, max_value=5),
         "activation": "relu",
         "input_shape": xtrain.shape[1:],
     },
     "Conv1D": {
         "num_layers": mai.Int(0, 4),
         "filters": mai.Int(min_value=32, max_value=128),
-        "kernel_size": 3,
+        "kernel_size": mai.Int(min_value=2, max_value=5),
         "activation": "relu",
     },
     "LSTM": {
@@ -151,8 +151,8 @@ cnn_lstm_structure = {
 }
 
 model_settings = {
-    "models": ["CNN-LSTM"],
-    "LSTM": 
+    "models": ["CNN_LSTM"],
+    "LSTM": {
         "structural_params": lstm_structure,
         "optimizer": "Adam",
         "Adam": {
@@ -188,7 +188,7 @@ model_settings = {
             "validation_split": 0.15,
         },
     },
-    "CNN-LSTM": {
+    "CNN_LSTM": {
         "structural_params": cnn_lstm_structure,
         "optimizer": "Adam",
         "Adam": {
@@ -226,3 +226,4 @@ with open("./configs/binary_case_2.pkl", "wb") as f:
 plt.clf()
 tuner.convergence_plot()
 plt.ylim([0, 1])
+plt.savefig("./figs/bc2_convergence.png", dpi=300)
