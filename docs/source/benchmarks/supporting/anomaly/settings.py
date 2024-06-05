@@ -10,8 +10,11 @@ from pathlib import Path
 anomaly_dir = Path(__file__).parent
 
 # Data paths (absolute path or relative path from anomaly directory)
-input_path = anomaly_dir / "../../../../../tests/supporting/DTL.npy"
-output_path = anomaly_dir / "../../../../../tests/supporting/DTL_labels.npy"
+#input_path = anomaly_dir / "relative/path/to/input.npy"
+#output_path = anomaly_dir / "relative/path/to/output.npy"
+
+input_path = "/home/jacc/pyMAISE/pyMAISE/datasets/DTL.npy"
+output_path = "/home/jacc/pyMAISE/pyMAISE/datasets/DTL_labels.npy"
 
 # pyMAISE settings
 problem_type = mai.ProblemType.CLASSIFICATION
