@@ -11,13 +11,14 @@ import numpy as np
 import settings
 from preprocessing import load_anomaly_data, split_sequences
 from sklearn.model_selection import TimeSeriesSplit
+from keras.layers import TimeDistributed
 
 import pyMAISE as mai
 
 print("\nBinary case 2")
 
 # Initialize pyMAISE
-mai.init(
+global_settings = mai.init(
     problem_type=settings.problem_type,
     verbosity=settings.verbosity,
     random_state=settings.random_state,
@@ -26,6 +27,7 @@ mai.init(
 
 # Load training/testing data
 data = load_anomaly_data(
+    global_settings=global_settings,
     stack_series=True,
     multiclass=False,
     test_size=settings.test_size,
@@ -54,7 +56,7 @@ plt.savefig("./figs/bc2_frequency.png", dpi=300)
 # NN structure
 lstm_structure = {
     "LSTM_input": {
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "input_shape": xtrain.shape[1:],
         "activation": "tanh",
         "recurrent_activation": "sigmoid",
@@ -62,19 +64,19 @@ lstm_structure = {
     },
     "LSTM": {
         "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "LSTM_output": {
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
     },
     "Dense": {
         "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=250),
+        "units": mai.Int(min_value=25, max_value=300),
         "activation": "relu",
     },
     "Dense_output": {
@@ -85,7 +87,7 @@ lstm_structure = {
 
 gru_structure = {
     "GRU_input": {
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "input_shape": xtrain.shape[1:],
         "activation": "tanh",
         "recurrent_activation": "sigmoid",
@@ -93,19 +95,19 @@ gru_structure = {
     },
     "GRU": {
         "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "GRU_output": {
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
     },
     "Dense": {
         "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=250),
+        "units": mai.Int(min_value=25, max_value=300),
         "activation": "relu",
     },
     "Dense_output": {
@@ -115,33 +117,65 @@ gru_structure = {
 }
 
 cnn_lstm_structure = {
+    "Reshape_input": {"target_shape": (5, 2, xtrain.shape[-1])},
     "Conv1D_input": {
-        "filters": mai.Int(min_value=32, max_value=128),
-        "kernel_size": mai.Int(min_value=2, max_value=5),
+        "filters": mai.Int(min_value=50, max_value=150),
+        "kernel_size": mai.Int(min_value=1, max_value=5),
         "activation": "relu",
-        "input_shape": xtrain.shape[1:],
+        "padding": "same",
+        "wrapper": (
+            TimeDistributed,
+            {"input_shape": (None, 2, xtrain.shape[-1])},
+        ),
+    },
+    "MaxPooling1D_input": {
+        "pool_size": 2,
+        "wrapper": TimeDistributed,
+        "padding": "same",
+        "sublayer": mai.Choice(["Dropout", "None"]),
+        "Dropout": {
+            "rate": mai.Float(min_value=0.2, max_value=0.6),
+            "wrapper": TimeDistributed,
+        },
     },
     "Conv1D": {
-        "num_layers": mai.Int(0, 4),
-        "filters": mai.Int(min_value=32, max_value=128),
-        "kernel_size": mai.Int(min_value=2, max_value=5),
+        "num_layers": mai.Int(min_value=0, max_value=3),
+        "filters": mai.Int(min_value=50, max_value=150),
+        "kernel_size": mai.Int(min_value=1, max_value=5),
         "activation": "relu",
+        "padding": "same",
+        "wrapper": TimeDistributed,
+        "sublayer": "MaxPooling1D",
+        "MaxPooling1D": {
+            "pool_size": 2,
+            "wrapper": TimeDistributed,
+            "padding": "same",
+            "sublayer": mai.Choice(["Dropout", "None"]),
+            "Dropout": {
+                "rate": mai.Float(min_value=0.2, max_value=0.6),
+                "wrapper": TimeDistributed,
+            },
+        },
+    },
+    "Flatten": {
+        "wrapper": TimeDistributed,
     },
     "LSTM": {
-        "num_layers": mai.Int(1, 4),
-        "units": mai.Int(min_value=25, max_value=150),
+        "num_layers": mai.Int(min_value=0, max_value=4),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
+        "recurrent_dropout": mai.Choice([0.0, 0.2, 0.4, 0.6]),
         "return_sequences": True,
     },
     "LSTM_output": {
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
     },
     "Dense": {
-        "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=250),
+        "num_layers": mai.Int(min_value=0, max_value=5),
+        "units": mai.Int(min_value=25, max_value=300),
         "activation": "relu",
     },
     "Dense_output": {
@@ -151,7 +185,7 @@ cnn_lstm_structure = {
 }
 
 model_settings = {
-    "models": ["CNN-LSTM"],
+    "models": ["LSTM", "GRU", "CNN-LSTM"],
     "LSTM": {
         "structural_params": lstm_structure,
         "optimizer": "Adam",
@@ -161,13 +195,13 @@ model_settings = {
             "clipvalue": mai.Float(0.3, 0.7),
         },
         "compile_params": {
-            "loss": "binary_crossentropy",
+            "loss": "categorical_crossentropy",
             "metrics": ["accuracy"],
         },
         "fitting_params": {
             "batch_size": mai.Choice([32, 64, 128]),
-            "epochs": 5,
-            "validation_split": 0.15,
+            "epochs": 7,
+            "validation_split": 0.10,
         },
     },
     "GRU": {
@@ -179,12 +213,12 @@ model_settings = {
             "clipvalue": mai.Float(0.3, 0.7),
         },
         "compile_params": {
-            "loss": "binary_crossentropy",
+            "loss": "categorical_crossentropy",
             "metrics": ["accuracy"],
         },
         "fitting_params": {
             "batch_size": mai.Choice([32, 64, 128]),
-            "epochs": 5,
+            "epochs": 7,
             "validation_split": 0.15,
         },
     },
@@ -197,12 +231,12 @@ model_settings = {
             "clipvalue": mai.Float(0.3, 0.7),
         },
         "compile_params": {
-            "loss": "binary_crossentropy",
+            "loss": "categorical_crossentropy",
             "metrics": ["accuracy"],
         },
         "fitting_params": {
             "batch_size": mai.Choice([32, 64, 128]),
-            "epochs": 5,
+            "epochs": 7,
             "validation_split": 0.15,
         },
     },

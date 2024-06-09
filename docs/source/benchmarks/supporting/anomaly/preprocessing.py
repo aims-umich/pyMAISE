@@ -19,12 +19,16 @@ import settings
 
 
 def load_anomaly_data(
+    global_settings,
     stack_series,
     multiclass,
     test_size,
     non_faulty_frac=1.0,
     timestep_step=1,
 ):
+    # Set random state temporarily to get the same split data between runs
+    global_settings.random_state = settings.data_random_state
+
     # Load data
     inputs, outputs = load_anomaly(
         input_path=settings.input_path,
@@ -43,6 +47,9 @@ def load_anomaly_data(
     xtrain, xtest, ytrain, ytest = train_test_split(
         [inputs, outputs], test_size=test_size
     )
+
+    # Reset random state
+    global_settings.random_state = settings.random_state
 
     # Scale inputs
     xtrain, xtest, xscaler = scale_data(xtrain, xtest, MinMaxScaler())

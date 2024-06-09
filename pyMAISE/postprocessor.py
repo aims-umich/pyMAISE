@@ -826,7 +826,9 @@ class PostProcessor:
 
     def confusion_matrix(
         self,
-        ax=None,
+        axs=None,
+        fig=None,
+        figsize=None,
         idx=None,
         model_type=None,
         sort_by=None,
@@ -876,9 +878,72 @@ class PostProcessor:
             )
             ytest = self._yscaler.inverse_transform(ytest.reshape(-1, ytest.shape[-1]))
 
-        train_cm = confusion_matrix(ytrain, yhat_train)
-        train_disp = ConfusionMatrixDisplay(confusion_matrix=train_cm)
-        test_cm = confusion_matrix(ytest, yhat_test)
-        test_disp = ConfusionMatrixDisplay(confusion_matrix=test_cm)
+        if axs is None or fig is None:
+            fig, axs = plt.subplots(
+                ytrain.shape[-1] if ytrain.shape[-1] > 2 else 1, 2, figsize=figsize
+            )
 
-        return (train_disp.ax_, test_disp.ax_)
+        if ytrain.shape[-1] > 2:
+            for i in range(axs.shape[0]):
+                # Training plot
+                disp = ConfusionMatrixDisplay(
+                    confusion_matrix(ytrain[..., i], yhat_train[..., i]),
+                )
+                disp.plot(ax=axs[i, 0], values_format=".4g")
+                class_label = (
+                    self._ytrain.coords[self._ytrain.dims[-1]]
+                    .values[i]
+                    .replace("_", " ")
+                )
+                disp.ax_.set_title(f"Train {class_label}")
+                disp.im_.colorbar.remove()
+
+                if i != axs.shape[0] - 1:
+                    disp.ax_.set_xlabel("")
+
+                # Testing plot
+                disp = ConfusionMatrixDisplay(
+                    confusion_matrix(ytest[..., i], yhat_test[..., i]),
+                )
+                disp.plot(ax=axs[i, 1], values_format=".4g")
+                class_label = (
+                    self._ytest.coords[self._ytest.dims[-1]].values[i].replace("_", " ")
+                )
+                disp.ax_.set_ylabel("")
+                disp.ax_.set_title(f"Test {class_label}")
+                disp.im_.colorbar.remove()
+
+                if i != axs.shape[0] - 1:
+                    disp.ax_.set_xlabel("")
+                else:
+                    plt.subplots_adjust(wspace=0.10, hspace=0.1)
+                    fig.colorbar(disp.im_, ax=axs)
+
+        else:
+            labels = [
+                self._ytrain.coords[self._ytrain.dims[-1]].values[0].split("_", 1)[1],
+                self._ytrain.coords[self._ytrain.dims[-1]].values[1].split("_", 1)[1],
+            ]
+            # Training plot
+            disp = ConfusionMatrixDisplay(
+                confusion_matrix(ytrain[..., -1], yhat_train[..., -1]),
+                display_labels=labels,
+            )
+            disp.plot(ax=axs[0], values_format=".4g")
+            disp.ax_.set_title("Train")
+            disp.im_.colorbar.remove()
+
+            # Testing plot
+            disp = ConfusionMatrixDisplay(
+                confusion_matrix(ytest[..., -1], yhat_test[..., -1]),
+                display_labels=labels,
+            )
+            disp.plot(ax=axs[1], values_format=".4g")
+            disp.ax_.set_ylabel("")
+            disp.ax_.set_title("Test")
+            disp.im_.colorbar.remove()
+
+            plt.subplots_adjust(wspace=0.10, hspace=0.1)
+            fig.colorbar(disp.im_, ax=axs)
+
+        return fig, axs

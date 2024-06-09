@@ -16,7 +16,7 @@ from preprocessing import load_anomaly_data
 print("\nBinary case 1")
 
 # Initialize pyMAISE
-mai.init(
+global_settings = mai.init(
     problem_type=settings.problem_type,
     verbosity=settings.verbosity,
     random_state=settings.random_state,
@@ -25,6 +25,7 @@ mai.init(
 
 # Load training/testing data
 xtrain, xtest, ytrain, ytest, _ = load_anomaly_data(
+    global_settings=global_settings,
     stack_series=False,
     multiclass=False,
     test_size=settings.test_size,
@@ -44,7 +45,7 @@ plt.savefig("./figs/bc1_frequency.png", dpi=300)
 # Model initialization
 lstm_structure = {
     "LSTM_input": {
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "input_shape": xtrain.shape[1:],
         "activation": "tanh",
         "recurrent_activation": "sigmoid",
@@ -52,19 +53,19 @@ lstm_structure = {
     },
     "LSTM": {
         "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "LSTM_output": {
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
     },
     "Dense": {
         "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=250),
+        "units": mai.Int(min_value=25, max_value=300),
         "activation": "relu",
     },
     "Dense_output": {
@@ -75,7 +76,7 @@ lstm_structure = {
 
 gru_structure = {
     "GRU_input": {
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "input_shape": xtrain.shape[1:],
         "activation": "tanh",
         "recurrent_activation": "sigmoid",
@@ -83,19 +84,19 @@ gru_structure = {
     },
     "GRU": {
         "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "GRU_output": {
-        "units": mai.Int(min_value=25, max_value=150),
+        "units": mai.Int(min_value=25, max_value=200),
         "activation": mai.Choice(["tanh", "sigmoid"]),
         "recurrent_activation": "sigmoid",
     },
     "Dense": {
         "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=250),
+        "units": mai.Int(min_value=25, max_value=300),
         "activation": "relu",
     },
     "Dense_output": {
@@ -115,17 +116,17 @@ model_settings = {
             "clipvalue": mai.Float(0.3, 0.7),
         },
         "compile_params": {
-            "loss": "binary_crossentropy",
+            "loss": "categorical_crossentropy",
             "metrics": ["accuracy"],
         },
         "fitting_params": {
             "batch_size": mai.Choice([8, 16, 32]),
-            "epochs": 5,
-            "validation_split": 0.15,
+            "epochs": 7,
+            "validation_split": 0.10,
         },
     },
     "GRU": {
-        "structural_params": lstm_structure,
+        "structural_params": gru_structure,
         "optimizer": "Adam",
         "Adam": {
             "learning_rate": mai.Float(1e-5, 0.001),
@@ -133,13 +134,13 @@ model_settings = {
             "clipvalue": mai.Float(0.3, 0.7),
         },
         "compile_params": {
-            "loss": "binary_crossentropy",
+            "loss": "categorical_crossentropy",
             "metrics": ["accuracy"],
         },
         "fitting_params": {
             "batch_size": mai.Choice([8, 16, 32]),
-            "epochs": 5,
-            "validation_split": 0.15,
+            "epochs": 7,
+            "validation_split": 0.10,
         },
     },
 }
