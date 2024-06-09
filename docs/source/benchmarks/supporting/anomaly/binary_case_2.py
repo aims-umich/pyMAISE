@@ -9,7 +9,7 @@ import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import settings
-from preprocessing import load_anomaly_data, split_sequences
+from preprocessing import load_anomaly_data, split_sequences, plot_label_frequency
 from sklearn.model_selection import TimeSeriesSplit
 
 import pyMAISE as mai
@@ -43,13 +43,7 @@ xtrain, xtest, ytrain, ytest = split_sequences(
 )
 
 # Plot label frequency
-plt.clf()
-plt.bar(["Fault", "Run"], np.sum(np.concatenate([ytrain, ytest], axis=0), axis=0))
-plt.title("Frequency of One-Hot Fault/Non Fault")
-plt.xlabel("Categories")
-plt.ylabel("Frequency")
-plt.ticklabel_format(style="plain", axis="y")
-plt.savefig("./figs/bc2_frequency.png", dpi=300)
+plot_label_frequency(ytrain, ytest, "./figs/bc2_frequency.png")
 
 # NN structure
 lstm_structure = {
@@ -214,7 +208,7 @@ tuner = mai.Tuner(xtrain, ytrain, model_settings=model_settings)
 # Hyperparameter tuning
 configs = tuner.nn_bayesian_search(
     objective="accuracy_score",
-    max_trials=50,
+    max_trials=1,
     cv=TimeSeriesSplit(n_splits=5),
 )
 
