@@ -5,6 +5,7 @@ Script for processing anomaly data.
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 import xarray as xr
 from sklearn.preprocessing import MinMaxScaler
 
@@ -109,3 +110,22 @@ def split_sequences(data, input_steps, output_steps, output_position):
     xtest, ytest = split_sequence.split(xr.concat([xtest, ytest], dim="features"))
 
     return xtrain, xtest, ytrain, ytest
+
+def plot_label_frequency(ytrain, ytest, output_path):
+    """
+    Plot the frequency of labels in the training and testing sets.
+
+    Parameters:
+    ytrain (numpy.ndarray): Training labels.
+    ytest (numpy.ndarray): Testing labels.
+    output_path (str): Path to save the plot.
+    """
+    plt.clf()
+    labels = np.sum(np.concatenate([ytrain, ytest], axis=0), axis=0)
+    categories = [f"Class {i}" for i in range(labels.shape[0])]
+    plt.bar(categories, labels)
+    plt.title("Frequency of One-Hot Encoded Labels")
+    plt.xlabel("Categories")
+    plt.ylabel("Frequency")
+    plt.ticklabel_format(style="plain", axis="y")
+    plt.savefig(output_path, dpi=300)
