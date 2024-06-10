@@ -219,7 +219,7 @@ model_settings = {
         "fitting_params": {
             "batch_size": mai.Choice([32, 64, 128]),
             "epochs": 7,
-            "validation_split": 0.15,
+            "validation_split": 0.10,
         },
     },
     "CNN-LSTM": {
@@ -237,7 +237,7 @@ model_settings = {
         "fitting_params": {
             "batch_size": mai.Choice([32, 64, 128]),
             "epochs": 7,
-            "validation_split": 0.15,
+            "validation_split": 0.10,
         },
     },
 }
