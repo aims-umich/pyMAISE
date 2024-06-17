@@ -242,7 +242,7 @@ tuner = mai.Tuner(xtrain, ytrain, model_settings=model_settings)
 # Hyperparameter tuning
 configs = tuner.nn_bayesian_search(
     objective="accuracy_score",
-    max_trials=1,
+    max_trials=50,
     cv=TimeSeriesSplit(n_splits=5),
 )
 
