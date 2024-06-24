@@ -1,7 +1,7 @@
 """
 binary_case_2.py.
 
-Script for hyperparameter tuning LSTM and GRU using 3D data.
+Script for hyperparameter tuning LSTM, GRU, and CNN-LSTM using 2D data.
 """
 
 import pickle
