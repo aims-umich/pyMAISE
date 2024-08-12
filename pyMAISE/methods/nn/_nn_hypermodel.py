@@ -1,6 +1,7 @@
 import copy
 import re
 
+from keras import Input
 from keras.models import Sequential
 from keras_tuner import HyperModel
 from tensorflow.keras.optimizers import (
@@ -33,7 +34,37 @@ from pyMAISE.utils.hyperparameters import Choice, HyperParameters
 
 
 class nnHyperModel(HyperModel):
-    def __init__(self, parameters: dict):
+    # Dictionary of supported Layers
+    layer_dict = {
+        "Dense": DenseLayer,
+        "Dropout": DropoutLayer,
+        "LSTM": LSTMLayer,
+        "GRU": GRULayer,
+        "Conv1D": Conv1DLayer,
+        "Conv2D": Conv2DLayer,
+        "Conv3D": Conv3DLayer,
+        "MaxPooling1D": MaxPooling1DLayer,
+        "MaxPooling2D": MaxPooling2DLayer,
+        "MaxPooling3D": MaxPooling3DLayer,
+        "Flatten": FlattenLayer,
+        "Reshape": ReshapeLayer,
+    }
+
+    # Dictionary of supported optimizers
+    optimizer_dict = {
+        "SGD": SGD,
+        "RMSprop": RMSprop,
+        "Adam": Adam,
+        "AdamW": AdamW,
+        "Adadelta": Adadelta,
+        "Adagrad": Adagrad,
+        "Adamax": Adamax,
+        "Adafactor": Adafactor,
+        "Nadam": Nadam,
+        "Ftrl": Ftrl,
+    }
+
+    def __init__(self, parameters: dict, input_shape):
         # Structure/Architectural hyperparameters
         self._structural_params = parameters["structural_params"]
 
@@ -59,41 +90,17 @@ class nnHyperModel(HyperModel):
         # Model fitting hyperparameters
         self._fitting_params = parameters["fitting_params"]
 
-        # Dictionary of supported Layers
-        self._layer_dict = {
-            "Dense": DenseLayer,
-            "Dropout": DropoutLayer,
-            "LSTM": LSTMLayer,
-            "GRU": GRULayer,
-            "Conv1D": Conv1DLayer,
-            "Conv2D": Conv2DLayer,
-            "Conv3D": Conv3DLayer,
-            "MaxPooling1D": MaxPooling1DLayer,
-            "MaxPooling2D": MaxPooling2DLayer,
-            "MaxPooling3D": MaxPooling3DLayer,
-            "Flatten": FlattenLayer,
-            "Reshape": ReshapeLayer,
-        }
-
-        # Dictionary of supported optimizers
-        self._optimizer_dict = {
-            "SGD": SGD,
-            "RMSprop": RMSprop,
-            "Adam": Adam,
-            "AdamW": AdamW,
-            "Adadelta": Adadelta,
-            "Adagrad": Adagrad,
-            "Adamax": Adamax,
-            "Adafactor": Adafactor,
-            "Nadam": Nadam,
-            "Ftrl": Ftrl,
-        }
+        # Input data shape
+        self._input_shape = input_shape
 
     # ==========================================================================
     # Methods
     def build(self, hp):
         # Sequential keras neural network
         model = Sequential()
+
+        # Add input layer
+        model.add(Input(shape=self._input_shape))
 
         # Iterating though archetecture
         for layer_name in self._structural_params.keys():
@@ -175,7 +182,7 @@ class nnHyperModel(HyperModel):
         # if multiple then take the first as the layer
         layer = None
         position = None
-        for key, value in self._layer_dict.items():
+        for key, value in self.layer_dict.items():
             match_idx = re.search(key, layer_name)
             if match_idx is not None and (
                 position is None or match_idx.span()[0] > position
@@ -205,8 +212,8 @@ class nnHyperModel(HyperModel):
                 sampled_data[key] = value.hp(hp, "_".join([optimizer, key]))
 
         # Search for support optimizer
-        if optimizer in self._optimizer_dict:
-            return self._optimizer_dict[optimizer](**sampled_data)
+        if optimizer in self.optimizer_dict:
+            return self.optimizer_dict[optimizer](**sampled_data)
 
         # If the optimizer name doesn't exit in supported optimizer
         # dictionary throw error

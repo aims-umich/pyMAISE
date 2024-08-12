@@ -318,7 +318,7 @@ class Tuner:
                     nnHyperModel
                     if settings.values.new_nn_architecture
                     else NeuralNetsRegression
-                )(parameters=parameters)
+                )(parameters=parameters, input_shape=self._xtrain.shape[1:])
             else:
                 self._models[model] = copy.deepcopy(NeuralNetsRegression)(
                     parameters=parameters

@@ -107,7 +107,7 @@ def test_new_nn_structure():
 
         # New NN model settings
         structural = {
-            "Dense_input": {
+            "Dense_hidden": {
                 "units": mai.Choice([100, 400]),
                 "input_dim": xtrain.shape[1],
                 "activation": "relu",
@@ -161,6 +161,7 @@ def test_new_nn_structure():
         )
 
         new_nn_structure_results = postprocessor.metrics()
+        postprocessor.print_model()
         print(f"Data set: {load_function}")
         print("Old Model Results\n", old_nn_structure_results.to_string())
         print("New Model Results\n", new_nn_structure_results.to_string())
@@ -171,7 +172,7 @@ def test_new_nn_structure():
                 "start_num_nodes"
             ]
             == new_nn_structure_results.loc[0, "Parameter Configurations"][
-                "Dense_input_0_units"
+                "Dense_hidden_0_units"
             ]
         )
         assert (
@@ -202,3 +203,5 @@ def test_new_nn_structure():
             / old_nn_structure_results.loc[0, "Test R2"]
             < plus_minus
         )
+
+        assert 0 == 1

@@ -1,5 +1,6 @@
 import copy
 import math
+import re
 
 import keras_tuner as kt
 import matplotlib.pyplot as plt
@@ -757,10 +758,9 @@ class PostProcessor:
                     self._ytest.coords[self._ytest.dims[-1]].values == y_idx
                 )[0]
 
-            ax.plot(
+            ax.scatter(
                 np.linspace(1, ytest.shape[0], ytest.shape[0]),
                 np.abs((ytest[:, y_idx] - yhat_test[:, y_idx]) / ytest[:, y_idx]) * 100,
-                "-o",
                 label=self._ytest.coords[self._ytest.dims[-1]].values[y_idx],
             )
 
@@ -823,6 +823,62 @@ class PostProcessor:
         ax.set_ylabel("Loss")
 
         return ax
+
+    def print_model(self, idx=None, model_type=None, sort_by=None, direction=None):
+        # Determine the index of the model in the DataFrame
+        idx = self._get_idx(
+            idx=idx,
+            model_type=model_type,
+            sort_by=sort_by,
+            direction=direction,
+            nns_only=False,
+        )
+
+        # Get model parameters
+        params = self.get_params(idx=idx).to_dict()
+
+        # Print parameters if not NN else ensure only pertinent information is printed
+        print(f"Model Type: {params.pop('Model Types')[0]}")
+        if (
+            model_type in Tuner.supported_classical_models
+            or not settings.values.new_nn_architecture
+        ):
+            for key, value in params.items():
+                print(f"  {key}: {value[0]}")
+        else:
+            # Get keras model
+            model = self._models["Model Wrappers"][idx].build(
+                self._models["Parameter Configurations"][idx]
+            )
+            model._name = self._models["Model Types"][idx]
+
+            # Iterate through layers
+            print("Structural Hyperparameters")
+            for layer in model.layers:
+                print(f"  Layer: {layer.name}")
+
+                # Iterate through layer specific tuned parameters
+                for key in copy.deepcopy(params).keys():
+                    if layer.name in key:
+                        reduced_key = key.replace(f"{layer.name}_", "")
+
+                        if reduced_key is "sublayer" or "sublayer" not in reduced_key:
+                            print(
+                                f"    {reduced_key}: {params.pop(f'{layer.name}_{reduced_key}')[0]}"
+                            )
+
+            # Iterate through parameters to print non-layer hyperparameters
+            print("Compile/Fitting Hyperparameters")
+            for key, value in params.items():
+                print_param = True
+
+                for layer_name in self._models["Model Wrappers"][idx].layer_dict.keys():
+                    if layer_name in key:
+                        print_param = False
+                        break
+
+                if print_param:
+                    print(f"  {key}: {value[0]}")
 
     def confusion_matrix(
         self,
