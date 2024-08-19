@@ -915,8 +915,8 @@ class PostProcessor:
 
                         if reduced_key == "sublayer" or "sublayer" not in reduced_key:
                             print(
-                                f"      {reduced_key}: \
-                                {params.pop(f'{layer.name}_{reduced_key}')[0]}"
+                                f"      {reduced_key}: "
+                                + f"{params.pop(f'{layer.name}_{reduced_key}')[0]}"
                             )
 
             # Iterate through parameters to print non-layer hyperparameters
