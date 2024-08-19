@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -58,7 +59,7 @@ def test_mnist_conv(mnist_data):
 
     # Using Sve Final Model archetecture
     structural = {
-        "Conv2D_input": {
+        "Conv2D_hidden0": {
             "filters": 32,
             "kernel_size": (3, 3),
             "activation": "relu",
@@ -152,3 +153,7 @@ def test_mnist_conv(mnist_data):
     assert metrics.shape == (1, 10)
     assert np.abs(metrics["Train Accuracy"][0] - 1) < 0.025
     assert np.abs(metrics["Test Accuracy"][0] - 1) < 0.025
+
+    # Run correlation matrix
+    _, axs = plt.subplots(1, 2)
+    postprocessor.confusion_matrix(axs=axs)

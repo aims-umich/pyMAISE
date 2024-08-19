@@ -1,4 +1,4 @@
-from keras.layers import LSTM
+from tensorflow.keras.layers import LSTM
 
 from pyMAISE.methods.nn._layer import Layer
 
@@ -13,7 +13,7 @@ class LSTMLayer(Layer):
         self._data = super().build_data(self._data, parameters)
 
         # Assert keras non-default variables are defined
-        assert self._data["units"] != None
+        assert self._data["units"] is not None
 
     # ==========================================================================
     # Methods

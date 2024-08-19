@@ -204,4 +204,5 @@ def test_new_nn_structure():
             < plus_minus
         )
 
-        assert 0 == 1
+
+test_new_nn_structure()

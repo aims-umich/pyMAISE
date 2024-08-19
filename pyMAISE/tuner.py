@@ -36,7 +36,7 @@ from pyMAISE.methods import (
     RandomForest,
     nnHyperModel,
 )
-from pyMAISE.utils import CVTuner
+from pyMAISE.utils import CVTuner, _try_clear
 
 
 class Tuner:
@@ -182,8 +182,8 @@ class Tuner:
     .. code-block:: python
 
         import pyMAISE as mai
-        from keras.layers import TimeDistributed
-        from keras.callbacks import ReduceLROnPlateau
+        from tensorflow.keras.layers import TimeDistributed
+        from tensorflow.keras.callbacks import ReduceLROnPlateau
 
         cnn_lstm_structure = {
             "Reshape_input": {
@@ -318,7 +318,7 @@ class Tuner:
                     nnHyperModel
                     if settings.values.new_nn_architecture
                     else NeuralNetsRegression
-                )(parameters=parameters, input_shape=self._xtrain.shape[1:])
+                )(parameters=parameters, input_shape=self._xtrain.shape[1:], name=model)
             else:
                 self._models[model] = copy.deepcopy(NeuralNetsRegression)(
                     parameters=parameters
@@ -368,8 +368,7 @@ class Tuner:
             configurations are provided than ``pyMAISE.Settings.num_configs_saved``
             then all are taken.
         """
-        if settings.values.verbosity > 0:
-            print("Hyper-parameter tuning with grid search")
+        print("Hyperparameter tuning classical models with grid search")
 
         return self._run_search(
             spaces=param_spaces,
@@ -429,8 +428,7 @@ class Tuner:
             configurations are provided than ``pyMAISE.Settings.num_configs_saved``
             then all are taken.
         """
-        if settings.values.verbosity > 0:
-            print("Hyper-parameter tuning with random search")
+        print("Hyperparameter tuning classical models with random search")
 
         return self._run_search(
             spaces=param_spaces,
@@ -499,8 +497,7 @@ class Tuner:
             configurations are provided than ``pyMAISE.Settings.num_configs_saved``
             then all are taken.
         """
-        if settings.values.verbosity > 0:
-            print("Hyper-parameter tuning with bayesian search")
+        print("Hyperparameter tuning classical models with bayesian search")
 
         return self._run_search(
             spaces=param_spaces,
@@ -552,8 +549,7 @@ class Tuner:
 
         data = {}
         for model in models:
-            if settings.values.verbosity > 0:
-                print("-- " + model)
+            print(f"Tuning {model}")
 
             # Run model
             estimator = self._models[model].regressor()
@@ -568,6 +564,7 @@ class Tuner:
                 resulting_model,
             )
 
+        _try_clear()
         return data
 
     def _run_search(self, spaces, search_method, search_kwargs, models=None):
@@ -587,8 +584,7 @@ class Tuner:
         search_data = {}
         for model in models:
             if model in spaces:
-                if settings.values.verbosity > 0:
-                    print(f"-- {model}")
+                print(f"  Tuning {model}")
 
                 # Run search method
                 search = search_method(
@@ -618,7 +614,7 @@ class Tuner:
 
             else:
                 print(
-                    f"Search space was not provided for {model}, "
+                    f"  Search space was not provided for {model}, "
                     + "current parameters will be added"
                 )
                 estimator = self._models[model].regressor()
@@ -632,6 +628,7 @@ class Tuner:
                     },
                 }
 
+        _try_clear()
         return search_data
 
     def nn_grid_search(
@@ -695,8 +692,7 @@ class Tuner:
             for each model. If fewer configurations are provided, than
             ``pyMAISE.Settings.num_configs_saved`` then all are taken.
         """
-        if settings.values.verbosity > 0:
-            print("Hyper-parameter tuning neural networks with grid search")
+        print("Hyperparameter tuning neural networks with grid search")
 
         kt_objective = self._determine_kt_objective(objective)
         oracle = GridSearchOracle(
@@ -782,8 +778,7 @@ class Tuner:
             for each model. If fewer configurations are provided, than
             ``pyMAISE.Settings.num_configs_saved`` then all are taken.
         """
-        if settings.values.verbosity > 0:
-            print("Hyper-parameter tuning neural networks with random search")
+        print("Hyperparameter tuning neural networks with random search")
 
         kt_objective = self._determine_kt_objective(objective)
         oracle = RandomSearchOracle(
@@ -874,8 +869,7 @@ class Tuner:
             for each model. If fewer configurations are provided, than
             ``pyMAISE.Settings.num_configs_saved`` then all are taken.
         """
-        if settings.values.verbosity > 0:
-            print("Hyper-parameter tuning neural networks with bayesian search")
+        print("Hyperparameter tuning neural networks with bayesian search")
 
         kt_objective = self._determine_kt_objective(objective)
         oracle = BayesianOptimizationOracle(
@@ -967,8 +961,7 @@ class Tuner:
             for each model. If fewer configurations are provided, than
             ``pyMAISE.Settings.num_configs_saved`` then all are taken.
         """
-        if settings.values.verbosity > 0:
-            print("Hyper-parameter tuning neural networks with hyperband search")
+        print("Hyperparameter tuning neural networks with hyperband search")
 
         kt_objective = self._determine_kt_objective(objective)
         oracle = HyperbandOracle(
@@ -1032,10 +1025,13 @@ class Tuner:
                 overwrite=overwrite,
                 directory=directory,
                 project_name=project_name,
+                verbose=settings.values.verbosity,
             )
 
             # Run search
-            tuner.search(x=self._xtrain, y=self._ytrain)
+            tuner.search(
+                x=self._xtrain, y=self._ytrain, verbose=settings.values.verbosity
+            )
 
             # Get best hyperparameters
             best_hps = tuner.get_best_hyperparameters(settings.values.num_configs_saved)
@@ -1062,6 +1058,7 @@ class Tuner:
                 for param, value in top_configs.iloc[0, 0].values.items():
                     print(f"{param}: {value}")
 
+        _try_clear()
         return data
 
     def _determine_kt_objective(self, objective):

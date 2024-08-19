@@ -1,9 +1,9 @@
 import copy
 import re
 
-from keras import Input
-from keras.models import Sequential
 from keras_tuner import HyperModel
+from tensorflow.keras import Input
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import (
     SGD,
     Adadelta,
@@ -64,7 +64,7 @@ class nnHyperModel(HyperModel):
         "Ftrl": Ftrl,
     }
 
-    def __init__(self, parameters: dict, input_shape):
+    def __init__(self, parameters: dict, input_shape, name):
         # Structure/Architectural hyperparameters
         self._structural_params = parameters["structural_params"]
 
@@ -93,11 +93,14 @@ class nnHyperModel(HyperModel):
         # Input data shape
         self._input_shape = input_shape
 
+        # Model name
+        self._name = name
+
     # ==========================================================================
     # Methods
     def build(self, hp):
         # Sequential keras neural network
-        model = Sequential()
+        model = Sequential(name=self._name)
 
         # Add input layer
         model.add(Input(shape=self._input_shape))
@@ -118,7 +121,7 @@ class nnHyperModel(HyperModel):
         layer = copy.deepcopy(self._get_layer(layer_name, structural_params))
 
         # Run through all number of layers
-        for i in range(layer.num_layers(hp)):
+        for _ in range(layer.num_layers(hp)):
             # Check if there's a wrapper (TimeDistributed, Bidirectional)
             wrapper_data = layer.wrapper()
             if wrapper_data is not None:
@@ -218,3 +221,24 @@ class nnHyperModel(HyperModel):
         # If the optimizer name doesn't exit in supported optimizer
         # dictionary throw error
         raise RuntimeError(f"Optimizer ({optimizer}) is not supported")
+
+    def get_hyperparameters(self):
+        hps = []
+
+        def search_dict(d):
+            for _, v in d.items():
+                if isinstance(v, HyperParameters):
+                    hps.append(v)
+
+                elif isinstance(v, dict):
+                    search_dict(v)
+
+        for d in [
+            self._structural_params,
+            self._compilation_params,
+            self._fitting_params,
+            self._optimizer_params,
+        ]:
+            search_dict(d)
+
+        return hps

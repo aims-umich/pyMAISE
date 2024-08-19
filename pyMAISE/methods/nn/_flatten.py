@@ -1,4 +1,4 @@
-from keras.layers import Flatten
+from tensorflow.keras.layers import Flatten
 
 from pyMAISE.methods.nn._layer import Layer
 

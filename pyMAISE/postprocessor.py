@@ -1,6 +1,5 @@
 import copy
 import math
-import re
 
 import keras_tuner as kt
 import matplotlib.pyplot as plt
@@ -12,14 +11,17 @@ from sklearn.metrics import (
     confusion_matrix,
     f1_score,
     mean_absolute_error,
+    mean_absolute_percentage_error,
     mean_squared_error,
     precision_score,
     r2_score,
     recall_score,
 )
+from tqdm.auto import tqdm
 
 import pyMAISE.settings as settings
 from pyMAISE.tuner import Tuner
+from pyMAISE.utils import _try_clear
 from pyMAISE.utils.cvtuner import determine_class_from_probabilities
 
 
@@ -123,6 +125,8 @@ class PostProcessor:
             axis=1,
         )
 
+        _try_clear()
+
     # ===========================================================
     # Methods
     def _fit(self):
@@ -133,8 +137,17 @@ class PostProcessor:
         yhat_test = []
         histories = []
 
+        # Progress bar
+        p = tqdm(
+            range(self._models.shape[0]),
+        )
+
         # Fit each model and predict outcomes
         for i in range(self._models.shape[0]):
+            p.desc = self._models["Model Types"][i]
+            p.n += 1
+            p.refresh()
+
             # Extract regressor for the configuration
             regressor = None
             if (
@@ -227,11 +240,12 @@ class PostProcessor:
         - ``MAE``: `mean absolute error <https://scikit-learn.org/\
           stable/modules/generated/sklearn.metrics.mean_absolute_error.html#sklearn\
           .metrics.mean_absolute_error>`_,
-        - ``MSE``: `mean squared error <https://scikit-learn.org/stable/\
-          modules/generated/sklearn.metrics.mean_squared_error.html#sklearn.metrics.\
-          mean_squared_error>`_,
+        - ``MAPE``: `mean absolute percentage error <https://scikit-learn\
+          .org/stable/modules/generated/sklearn.metrics.mean_absolute_per\
+          centage_error.html>`_,
         - ``RMSE``: root mean squared error, the square
-          root of ``mean_squared_error``.
+          root of ``MSE``,
+        - ``RMSPE``: root mean squared percentage error.
 
         For :attr:`pyMAISE.ProblemType.CLASSIFICATION` problems, the default metrics are
 
@@ -291,6 +305,22 @@ class PostProcessor:
         def mai_f1_score(y_true, y_pred):
             return f1_score(y_true, y_pred, average="micro")
 
+        def mai_mean_absolute_percentage_error(y_true, y_pred):
+            return mean_absolute_percentage_error(y_true, y_pred) * 100
+
+        def root_mean_square_percentage_error(y_true, y_pred):
+            epsilon = np.finfo(np.float64).eps
+            return 100 * np.mean(
+                np.sqrt(
+                    np.mean(
+                        np.square(
+                            (y_true - y_pred) / np.maximum(np.abs(y_true), epsilon)
+                        ),
+                        axis=0,
+                    )
+                )
+            )
+
         # Get the list of y if not provided
         num_outputs = self._ytrain.shape[-1]
         if y is None:
@@ -322,8 +352,9 @@ class PostProcessor:
             metrics = {
                 "R2": r2_score,
                 "MAE": mean_absolute_error,
-                "MSE": mean_squared_error,
+                "MAPE": mai_mean_absolute_percentage_error,
                 "RMSE": root_mean_squared_error,
+                "RMSPE": root_mean_square_percentage_error,
                 **metrics,
             }
         if settings.values.problem_type == settings.ProblemType.CLASSIFICATION:
@@ -825,6 +856,27 @@ class PostProcessor:
         return ax
 
     def print_model(self, idx=None, model_type=None, sort_by=None, direction=None):
+        """
+        Print a models tuned hyperparameters.
+
+        Parameters
+        ----------
+        idx: int or None, default=None
+            The index in the :meth:`pyMAISE.PostProcessor.metrics` pandas.DataFrame.
+            If ``None``, then ``sort_by`` is used.
+        model_type: str or None, default=None
+            The model name to get. Will get the best model predictions based on
+            ``sort_by``.
+        sort_by: str or None, detault=None
+            The metric to sort the pandas.DataFrame from
+            :meth:`pyMAISE.PostProcessor.metrics` by. If ``None`` then
+            ``test r2_score`` is used for :attr:`pyMAISE.ProblemType.REGRESSION`
+            and ``test accuracy_score`` is used for
+            :attr:`pyMAISE.ProblemType.CLASSIFICATION`.
+        direction: 'min', 'max', or None, default=None
+            The direction to ``sort_by``. It is only required if ``sort_by`` is not
+            a default metric.
+        """
         # Determine the index of the model in the DataFrame
         idx = self._get_idx(
             idx=idx,
@@ -850,25 +902,25 @@ class PostProcessor:
             model = self._models["Model Wrappers"][idx].build(
                 self._models["Parameter Configurations"][idx]
             )
-            model._name = self._models["Model Types"][idx]
 
             # Iterate through layers
-            print("Structural Hyperparameters")
+            print("  Structural Hyperparameters")
             for layer in model.layers:
-                print(f"  Layer: {layer.name}")
+                print(f"    Layer: {layer.name}")
 
                 # Iterate through layer specific tuned parameters
                 for key in copy.deepcopy(params).keys():
                     if layer.name in key:
                         reduced_key = key.replace(f"{layer.name}_", "")
 
-                        if reduced_key is "sublayer" or "sublayer" not in reduced_key:
+                        if reduced_key == "sublayer" or "sublayer" not in reduced_key:
                             print(
-                                f"    {reduced_key}: {params.pop(f'{layer.name}_{reduced_key}')[0]}"
+                                f"      {reduced_key}: \
+                                {params.pop(f'{layer.name}_{reduced_key}')[0]}"
                             )
 
             # Iterate through parameters to print non-layer hyperparameters
-            print("Compile/Fitting Hyperparameters")
+            print("  Compile/Fitting Hyperparameters")
             for key, value in params.items():
                 print_param = True
 
@@ -878,21 +930,26 @@ class PostProcessor:
                         break
 
                 if print_param:
-                    print(f"  {key}: {value[0]}")
+                    print(f"    {key}: {value[0]}")
 
     def confusion_matrix(
         self,
-        ax=None,
+        axs=None,
         idx=None,
         model_type=None,
         sort_by=None,
         direction=None,
+        colorbar=False,
+        annotate=True,
+        round=2,
     ):
         """
         Create training and testing confusion matrix.
 
         Parameters
         ----------
+        axs: list of 2 matplotlib.pyplot.axis or None, default=None
+            If not given then an axes are created.
         idx: int or None, default=None
             The index in the :meth:`pyMAISE.PostProcessor.metrics` pandas.DataFrame.
             If ``None``, then ``sort_by`` is used.
@@ -908,6 +965,12 @@ class PostProcessor:
         direction: 'min', 'max', or None, default=None
             The direction to ``sort_by``. It is only required if ``sort_by`` is not
             a default metric.
+        colorbar: Boolean, default=False
+            Whether to include a colorbar.
+        annotate: Boolean, default=True
+            Whether to include annotations (number and percentage).
+        round: int, default=2
+            Number of digits to round percentage in annotation.
 
         Returns
         -------
@@ -919,22 +982,57 @@ class PostProcessor:
             idx=idx, model_type=model_type, sort_by=sort_by, direction=direction
         )
 
+        # Labels
+        labels = []
+        for label in self._ytrain.coords[self._ytrain.dims[-1]].values:
+            labels.append(label.split("_", 1)[1])
+
         # Get predicted and actual outputs
         yhat_train = self._models["Train Yhat"][idx]
         yhat_test = self._models["Test Yhat"][idx]
-
         ytrain = self._ytrain.values
         ytest = self._ytest.values
 
-        if self._yscaler is not None:
-            ytrain = self._yscaler.inverse_transform(
-                ytrain.reshape(-1, ytrain.shape[-1])
-            )
-            ytest = self._yscaler.inverse_transform(ytest.reshape(-1, ytest.shape[-1]))
+        # Convert one-hot encoding to multilabel
+        if ytrain.shape[-1] > 1:
+            yhat_train = np.argmax(yhat_train, axis=-1)
+            yhat_test = np.argmax(yhat_test, axis=-1)
+            ytrain = np.argmax(ytrain, axis=-1)
+            ytest = np.argmax(ytest, axis=-1)
 
-        train_cm = confusion_matrix(ytrain, yhat_train)
-        train_disp = ConfusionMatrixDisplay(confusion_matrix=train_cm)
-        test_cm = confusion_matrix(ytest, yhat_test)
-        test_disp = ConfusionMatrixDisplay(confusion_matrix=test_cm)
+        # Confusion matrix
+        train_cm = confusion_matrix(y_true=ytrain, y_pred=yhat_train)
+        test_cm = confusion_matrix(y_true=ytest, y_pred=yhat_test)
 
-        return (train_disp.ax_, test_disp.ax_)
+        # Axes
+        axs = axs if axs is not None else [plt.gca(), plt.gca()]
+
+        # Confusion matrix display
+        ConfusionMatrixDisplay(confusion_matrix=train_cm, display_labels=labels).plot(
+            include_values=False, ax=axs[0], colorbar=colorbar
+        )
+        ConfusionMatrixDisplay(confusion_matrix=test_cm, display_labels=labels).plot(
+            include_values=False, ax=axs[1], colorbar=colorbar
+        )
+
+        # Add values and percentages
+        if annotate:
+            for (i, j), value in np.ndenumerate(train_cm):
+                axs[0].text(
+                    i,
+                    j,
+                    f"{value}\n{np.round(value / np.sum(train_cm) * 100, round)}%",
+                    ha="center",
+                    va="center",
+                )
+
+                value = test_cm[i, j]
+                axs[1].text(
+                    i,
+                    j,
+                    f"{value}\n{np.round(value / np.sum(test_cm) * 100, round)}%",
+                    ha="center",
+                    va="center",
+                )
+
+        return axs

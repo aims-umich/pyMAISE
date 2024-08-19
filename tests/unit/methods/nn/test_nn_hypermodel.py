@@ -1,5 +1,5 @@
-import keras
 import keras_tuner
+import tensorflow.keras as keras
 
 from pyMAISE import Int
 from pyMAISE.methods import nnHyperModel
