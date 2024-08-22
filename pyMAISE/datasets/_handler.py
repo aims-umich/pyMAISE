@@ -1,7 +1,8 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pathlib import Path
 
 from pyMAISE.preprocessing import read_csv
 
@@ -74,7 +75,9 @@ def load_chf(data_path=None):
     data_path: str of list of two str
         Path(s) to real NEA data.
 
+
     If ``data_path`` is ``None`` or a list of two strings:
+
 
     Returns
     -------
@@ -91,7 +94,9 @@ def load_chf(data_path=None):
     ytest: xarray.DataArray
         Training output.
 
+
     If ``data_path`` is a string:
+
 
     Returns
     -------
