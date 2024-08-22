@@ -82,7 +82,6 @@ def test_loca_lstm():
             "optimizer": "Adam",
             "Adam": {
                 "learning_rate": mai.Choice([0.0001, 0.001]),
-                "clipnorm": 1.0,
                 "clipvalue": 0.5,
             },
             "compile_params": {
