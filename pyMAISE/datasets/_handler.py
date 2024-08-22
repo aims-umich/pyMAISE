@@ -1,14 +1,14 @@
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pkg_resources import resource_filename
+from pathlib import Path
 
 from pyMAISE.preprocessing import read_csv
 
 
 def _get_full_path(path: str):
     """Get full pyMAISE data file path."""
-    return resource_filename("pyMAISE", path)
+    return str(Path(__file__).parent / path)
 
 
 def load_MITR():
@@ -30,19 +30,19 @@ def load_MITR():
         Fuel element power.
     """
     return read_csv(
-        [_get_full_path("datasets/crx.csv"), _get_full_path("datasets/powery.csv")],
+        [_get_full_path("crx.csv"), _get_full_path("powery.csv")],
     )
 
 
 def load_chf(data_path=None):
     """
-    Load Critical Heat Flux (CHF) synthetic data. This dataset is based on that
-    produced by the NEA in :cite:`CHF_Benchmark`. The NEA dataset was generated from
-    vertical water-cooled uniformly heated tubes, producing 24576 samples from 59
-    different sources of measurement. The dataset was collected over experimental
-    measurements spanning 60 years of CHF data collection methods such as visual
-    identification, physical burnout, changes in the test section resistances, and
-    the usage of thermocouples. The input parameters collected include
+    Load Critical Heat Flux (CHF) synthetic data. This dataset is based on that produced
+    by the NEA in :cite:`CHF_Benchmark`. The NEA dataset was generated from vertical
+    water-cooled uniformly heated tubes, producing 24576 samples from 59 different
+    sources of measurement. The dataset was collected over experimental measurements
+    spanning 60 years of CHF data collection methods such as visual identification,
+    physical burnout, changes in the test section resistances, and the usage of
+    thermocouples. The input parameters collected include.
 
     - ``D (m)``: Diameter of the test section (:math:`0.002 - 0.016~m`),
     - ``L (m)``: Heated length (:math:`0.07 - 15.0~m`),
@@ -132,12 +132,12 @@ def load_chf(data_path=None):
 
     else:
         train_data, xtrain, ytrain = read_csv(
-            _get_full_path("datasets/chf_train_synth.csv"),
+            _get_full_path("chf_train_synth.csv"),
             input_slice=slice(0, 6),
             output_slice=slice(6, 7),
         )
         test_data, xtest, ytest = read_csv(
-            _get_full_path("datasets/chf_test_synth.csv"),
+            _get_full_path("chf_test_synth.csv"),
             input_slice=slice(0, 6),
             output_slice=slice(6, 7),
         )
@@ -187,7 +187,7 @@ def load_xs():
     outputs: xarray.DataArray
         :math:`k`, neutron multiplication factor, data.
     """
-    return read_csv(_get_full_path("datasets/xs.csv"), slice(0, -1), slice(-1, None))
+    return read_csv(_get_full_path("xs.csv"), slice(0, -1), slice(-1, None))
 
 
 def load_fp():
@@ -231,9 +231,7 @@ def load_fp():
     outputs: xarray.DataArray
         4 outputs.
     """
-    return read_csv(
-        [_get_full_path("datasets/fp_inp.csv"), _get_full_path("datasets/fp_out.csv")]
-    )
+    return read_csv([_get_full_path("fp_inp.csv"), _get_full_path("fp_out.csv")])
 
 
 def load_heat():
@@ -275,7 +273,7 @@ def load_heat():
     outputs: xarray.DataArray
         Fuel centerline temperature.
     """
-    return read_csv(_get_full_path("datasets/heat.csv"), slice(0, -1), slice(-1, None))
+    return read_csv(_get_full_path("heat.csv"), slice(0, -1), slice(-1, None))
 
 
 def load_rea():
@@ -309,8 +307,8 @@ def load_rea():
     """
     return read_csv(
         [
-            _get_full_path("datasets/rea_inputs.csv"),
-            _get_full_path("datasets/rea_outputs.csv"),
+            _get_full_path("rea_inputs.csv"),
+            _get_full_path("rea_outputs.csv"),
         ],
     )
 
@@ -369,8 +367,8 @@ def load_BWR():
     """
     return read_csv(
         [
-            _get_full_path("datasets/bwr_input.csv"),
-            _get_full_path("datasets/bwr_output.csv"),
+            _get_full_path("bwr_input.csv"),
+            _get_full_path("bwr_output.csv"),
         ],
     )
 
@@ -421,9 +419,7 @@ def load_HTGR():
         Four outputs.
     """
 
-    return read_csv(
-        _get_full_path("datasets/microreactor.csv"), slice(29, 37), slice(4, 8)
-    )
+    return read_csv(_get_full_path("microreactor.csv"), slice(29, 37), slice(4, 8))
 
 
 def load_loca(stack_series=False):
@@ -459,12 +455,12 @@ def load_loca(stack_series=False):
         and if 3D then the shape is (2000, 400, 44).
     """
     # Paths
-    input_path = _get_full_path("datasets/loca_inp.csv")
+    input_path = _get_full_path("loca_inp.csv")
     output_paths = {
-        "Pellet Cladding Temperature": "datasets/loca_pct.csv",
-        "Core Pressure": "datasets/loca_core_pressure.csv",
-        "Water Level": "datasets/loca_water_level.csv",
-        "Break Flow Rate": "datasets/loca_break_flow_rate.csv",
+        "Pellet Cladding Temperature": "loca_pct.csv",
+        "Core Pressure": "loca_core_pressure.csv",
+        "Water Level": "loca_water_level.csv",
+        "Break Flow Rate": "loca_break_flow_rate.csv",
     }
 
     # Read outputs and concatenate arrays
