@@ -61,18 +61,11 @@ class Settings:
             random.seed(self._random_state)
             np.random.seed(self._random_state)
             tf.compat.v1.set_random_seed(self._random_state)
+            tf.random.set_seed(self._random_state)
 
             # Deterministic tensorflow
             os.environ["TF_DETERMINISTIC_OPS"] = "1"
             os.environ["TF_CUBNN_DETERMINISTIC"] = "1"
-
-            session_conf = tf.compat.v1.ConfigProto(
-                intra_op_parallelism_threads=1, inter_op_parallelism_threads=1
-            )
-            sess = tf.compat.v1.Session(
-                graph=tf.compat.v1.get_default_graph(), config=session_conf
-            )
-            tf.compat.v1.keras.backend.set_session(sess)
 
     # Getters
     @property
