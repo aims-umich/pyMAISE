@@ -342,7 +342,7 @@ Additionally, we can supply our own metrics to the ``metrics`` as callables. We 
 Performance Visualized
 ^^^^^^^^^^^^^^^^^^^^^^
 
-To visualize the performance of each of these models we can use :meth:`pyMAISE.PostProcessor.diagonal_validation_plot`, :meth:`pyMAISE.PostProcessor.validation_plot`, and :meth:`pyMAISE.PostProcessor.nn_learning_plot`. The first two methods provide a comparison of the predicted outcomes versus the actual and :meth:`pyMAISE.PostProcessor.nn_learning_plot` provides a neural network learning curve for comparing training and validation performance.
+To visualize the performance of each of these models we can use :meth:`pyMAISE.PostProcessor.diagonal_validation_plot`, :meth:`pyMAISE.PostProcessor.validation_plot`, and :meth:`pyMAISE.PostProcessor.nn_learning_plot`. The first two methods provide a comparison of the predicted outcomes versus the actual and :meth:`pyMAISE.PostProcessor.nn_learning_plot` provides a neural network learning curve for comparing training and validation performance. You can plot neural network structures with :meth:`pyMAISE.PostProcessor.nn_network_plot`.
 
 For classification problems we can create a confusion matrix using :meth:`pyMAISE.PostProcessor.confusion_matrix`.
 

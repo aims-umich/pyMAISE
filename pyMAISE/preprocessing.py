@@ -471,7 +471,7 @@ def scale_data(train_data, test_data, scaler):
     Example
     -------
 
-    Given the following 2D ``xarray.DataArray``s of shape (samples,
+    Given the following 2D ``xarray.DataArrays`` of shape (samples,
     features/labels), ``xtrain`` and ``xtest``, we can apply the
     ``pyMAISE.preprocessing.scale_data()`` method,
 

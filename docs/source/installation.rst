@@ -25,6 +25,9 @@ pyMAISE will also install all needed dependencies.
    -  `TensorFlow <https://tensorflow.org>`_
    -  `SciKeras <https://adriangb.com/scikeras/stable/>`_
    -  `Matplotlib <https://matplotlib.org/stable/>`_
+   -  `tqdm <https://tqdm.github.io/>`_
+   -  `pydot <https://github.com/pydot/pydot>`_
+   -  `graphviz <https://graphviz.org/>`_
 
 .. admonition:: Optional
    :class: note
