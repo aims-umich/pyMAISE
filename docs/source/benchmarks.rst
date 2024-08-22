@@ -36,7 +36,8 @@ pyMAISE aims to be a medium for AI/ML researchers to benchmark their data sets a
     4. Add the relative path to the notebook to ``docs/source/benchmarks.rst`` under the ``toctree``.
     5. Add a blurb about the data to the user guid under the :ref:`preprocessing <preprocessing>` section in ``docs/souce/user_guide.rst``.
     6. Add the load function to the ``toctree`` in ``docs/source/pymaise_api.rst`` under :ref:`Data Sets <datasets_api>`.
-    7. If a published paper exists for the data set, add the BibTeX citation to ``docs/source/data_refs.bib``.
+    7. Add the nbviwer link to ``README.md``. Ensure this link is for the develop branch.
+    8. If a published paper exists for the data set, add the BibTeX citation to ``docs/source/data_refs.bib``.
 3. Once these steps are completed, you can push the benchmark, ensuring to adhere to the workflow outlined in the :ref:`dev_guide`, and create a `pull request <https://github.com/myerspat/pyMAISE/pulls>`_.
 
 A reviewer will ensure the validity of the benchmark and data. They will offer feedback and possible revisions for you. Thank you for contributing!

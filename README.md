@@ -41,3 +41,4 @@ You can find the pyMAISE benchmarks [here](https://pymaise.readthedocs.io/en/lat
 - [BWR Micro Core](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/bwr.ipynb)
 - [HTGR Micro-Core Quadrant Power](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/HTGR_microreactor.ipynb)
 - [NEACRP C1 Rod Ejection Accident](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/rod_ejection.ipynb)
+- [Critical Heat Flux (CHF) Prediction](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/chf.ipynb)
