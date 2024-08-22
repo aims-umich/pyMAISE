@@ -72,7 +72,7 @@ def load_chf(data_path=None):
 
     Parameters
     ----------
-    data_path: str of list of two str
+    data_path: None, str, or list of two str(s), default=None
         Path(s) to real NEA data.
 
 
