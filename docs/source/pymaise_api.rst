@@ -77,6 +77,7 @@ From pyMAISE, we cannot directly access the data set load functions.
    pyMAISE.datasets.load_BWR
    pyMAISE.datasets.load_HTGR
    pyMAISE.datasets.load_rea
+   pyMAISE.datasets.load_chf
    pyMAISE.datasets.load_loca
 
 .. _preprocessing_api:
