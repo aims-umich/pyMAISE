@@ -52,13 +52,6 @@ def test_loca_lstm():
 
     # RNN model settings
     structural = {
-        # "LSTM_input": {
-        #     "units": 100,
-        #     "activation": "tanh",
-        #     "recurrent_activation": "sigmoid",
-        #     "return_sequences": True,
-        #     "input_shape": (396, 56),
-        # },
         "LSTM_hidden0": {
             "units": 80,
             "activation": "tanh",

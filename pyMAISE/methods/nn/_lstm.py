@@ -44,7 +44,6 @@ class LSTMLayer(Layer):
             "return_state": False,
             "go_backwards": False,
             "stateful": False,
-            "time_major": False,
             "unroll": False,
         }
         super().reset()

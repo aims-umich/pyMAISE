@@ -465,7 +465,30 @@ def train_test_split(
 
 def scale_data(train_data, test_data, scaler):
     """
-    Scale training and testing data using the scaler provided.
+    Scale training and testing data using the scaler provided. This method returns the
+    fit scalar which can be used to scale any additional data.
+
+    Example
+    -------
+
+    Given the following 2D ``xarray.DataArray``s of shape (samples,
+    features/labels), ``xtrain`` and ``xtest``, we can apply the
+    ``pyMAISE.preprocessing.scale_data()`` method,
+
+    .. code:: python
+
+       from pyMAISE.preprocessing import scale_data
+       from sklearn.preprocessing import MinMaxScaler
+
+       xtrain, xtest, xscaler = scale_data(xtrain, xtest, MinMaxScaler)
+
+    We can then scale an additional dataset, ``xvalid``, that matches the
+    format of ``xtrain`` and ``xtest`` by running
+
+    .. code:: python
+
+       xvalid.values = xscaler.transform(xvalid.values)
+
 
     Parameters
     ----------

@@ -63,7 +63,14 @@ running or creating pyMAISE benchmarks, install the additional dependencies:
 *************
 
 For the latest features in development or access to benchmark, install
-pyMAISE from source. Clone the repository using ``git`` and running:
+pyMAISE from source. You can install from source without cloning the environment
+by running:
+
+.. code:: sh
+
+   pip install git+https://github.com/myerspat/pyMAISE.git
+
+Alternatively, you can clone the repository using ``git``:
 
 .. code:: sh
 

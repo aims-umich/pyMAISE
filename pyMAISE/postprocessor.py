@@ -18,6 +18,7 @@ from sklearn.metrics import (
     recall_score,
 )
 from tqdm.auto import tqdm
+import tensorflow as tf
 
 import pyMAISE.settings as settings
 from pyMAISE.tuner import Tuner
@@ -197,19 +198,37 @@ class PostProcessor:
                         )
                         .model.history.history
                     )
-                    if (
-                        settings.values.problem_type
-                        == settings.ProblemType.CLASSIFICATION
-                    ):
+                    if settings.values.problem_type == settings.ProblemType.REGRESSION:
+                        # Append training and testing predictions
+                        yhat_train.append(
+                            regressor.predict(
+                                self._xtrain, verbose=settings.values.verbosity
+                            ).reshape(-1, self._ytrain.shape[-1])
+                        )
+                        yhat_test.append(
+                            regressor.predict(
+                                self._xtest, verbose=settings.values.verbosity
+                            ).reshape(-1, self._ytest.shape[-1])
+                        )
+                        continue
+
+                    else:
+                        # Append training and testing predictions
                         yhat_train.append(
                             determine_class_from_probabilities(
-                                regressor.predict(self._xtrain.values),
+                                regressor.predict(
+                                    self._xtrain.values,
+                                    verbose=settings.values.verbosity,
+                                ),
                                 self._ytrain.values,
                             ).reshape(-1, self._ytrain.shape[-1])
                         )
                         yhat_test.append(
                             determine_class_from_probabilities(
-                                regressor.predict(self._xtest.values),
+                                regressor.predict(
+                                    self._xtest.values,
+                                    verbose=settings.values.verbosity,
+                                ),
                                 self._ytest.values,
                             ).reshape(-1, self._ytest.shape[-1])
                         )
@@ -855,7 +874,9 @@ class PostProcessor:
 
         return ax
 
-    def print_model(self, idx=None, model_type=None, sort_by=None, direction=None):
+    def print_model(
+        self, idx=None, model_type=None, sort_by=None, direction=None, **kwargs
+    ):
         """
         Print a models tuned hyperparameters.
 
@@ -876,6 +897,10 @@ class PostProcessor:
         direction: 'min', 'max', or None, default=None
             The direction to ``sort_by``. It is only required if ``sort_by`` is not
             a default metric.
+        kwargs:
+            Any arguments used by `tensorflow.keras.Sequential.summary()
+            <https://www.tensorflow.org/api_docs/python/tf/keras/Sequential#summ\
+            ary>`_.
         """
         # Determine the index of the model in the DataFrame
         idx = self._get_idx(
@@ -931,6 +956,58 @@ class PostProcessor:
 
                 if print_param:
                     print(f"    {key}: {value[0]}")
+
+            model.summary(**kwargs)
+
+    def nn_network_plot(
+        self, idx=None, model_type=None, sort_by=None, direction=None, **kwargs
+    ):
+        """
+        Plot NN network.
+
+        .. note::
+
+           For this to work you must have graphviz installed which can be done
+           through your package manager.
+
+        Parameters
+        ----------
+        idx: int or None, default=None
+            The index in the :meth:`pyMAISE.PostProcessor.metrics` pandas.DataFrame.
+            If ``None``, then ``sort_by`` is used.
+        model_type: str or None, default=None
+            The model name to get. Will get the best model predictions based on
+            ``sort_by``.
+        sort_by: str or None, detault=None
+            The metric to sort the pandas.DataFrame from
+            :meth:`pyMAISE.PostProcessor.metrics` by. If ``None`` then
+            ``test r2_score`` is used for :attr:`pyMAISE.ProblemType.REGRESSION`
+            and ``test accuracy_score`` is used for
+            :attr:`pyMAISE.ProblemType.CLASSIFICATION`.
+        direction: 'min', 'max', or None, default=None
+            The direction to ``sort_by``. It is only required if ``sort_by`` is not
+            a default metric.
+        kwargs:
+            Any arguments related to `tensorflow.keras.utils.plot_model() \
+            <https://www.tensorflow.org/api_docs/python/tf/keras/utils/plot_model>`_
+            except ``model``.
+        """
+        # Determine the index of the model in the DataFrame
+        idx = self._get_idx(
+            idx=idx,
+            model_type=model_type,
+            sort_by=sort_by,
+            direction=direction,
+            nns_only=True,
+        )
+
+        # Get keras model
+        model = self._models["Model Wrappers"][idx].build(
+            self._models["Parameter Configurations"][idx]
+        )
+
+        # Run plotter
+        return tf.keras.utils.plot_model(model, **kwargs)
 
     def confusion_matrix(
         self,

@@ -1,3 +1,5 @@
+# Bash script to run and save output of all notebooks
+
 # Notebooks
 declare -a notebooks=(
   "mit_reactor"

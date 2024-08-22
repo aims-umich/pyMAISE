@@ -28,6 +28,8 @@ setup(
         "scikeras",
         "matplotlib",
         "tqdm",
+        "pydot",
+        "graphviz",
     ],
     extras_require={
         "dev": [

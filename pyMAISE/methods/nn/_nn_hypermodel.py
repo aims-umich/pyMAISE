@@ -103,7 +103,7 @@ class nnHyperModel(HyperModel):
         model = Sequential(name=self._name)
 
         # Add input layer
-        model.add(Input(shape=self._input_shape))
+        model.add(Input(shape=self._input_shape, name=self._name + "_Input"))
 
         # Iterating though archetecture
         for layer_name in self._structural_params.keys():

@@ -109,7 +109,6 @@ def test_new_nn_structure():
         structural = {
             "Dense_hidden": {
                 "units": mai.Choice([100, 400]),
-                "input_dim": xtrain.shape[1],
                 "activation": "relu",
                 "kernel_initializer": "normal",
                 "sublayer": "Dropout",

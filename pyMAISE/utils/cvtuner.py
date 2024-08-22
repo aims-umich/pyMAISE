@@ -116,7 +116,7 @@ class CVTuner(kt.Tuner):
 
             # Evaluate model performance
             if self._metrics is not None:
-                y_val_pred = model.predict(x_val)
+                y_val_pred = model.predict(x_val, verbose=settings.values.verbosity)
 
                 # Round probabilities to correct class based on data format
                 if settings.values.problem_type == settings.ProblemType.CLASSIFICATION:
