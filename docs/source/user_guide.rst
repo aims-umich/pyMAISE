@@ -68,7 +68,8 @@ pyMAISE offers several data sets for building and testing ML models. Each of the
 - :doc:`benchmarks/heat_conduction`: effect of heat conduction parameters on fuel rod centerline temperature,
 - :doc:`benchmarks/bwr`: effect of BWR core parameters on :math:`k` and peaking factors,
 - :doc:`benchmarks/HTGR_microreactor`: effect of control drum angle on neutron flux,
-- :doc:`benchmarks/rod_ejection`: effect of reactor kinetics parameters on max power, burst width, max fuel centerline temperature, and average coolant temperature.
+- :doc:`benchmarks/rod_ejection`: effect of reactor kinetics parameters on max power, burst width, max fuel centerline temperature, and average coolant temperature,
+- :doc:`benchmarks/chf`: effect of experimental parameters on critical heat flux (CHF).
 
 Each data set has a load function in the :mod:`pyMAISE.datasets` module. For details, refer to the :doc:`pymaise_api`.
 
@@ -159,19 +160,9 @@ For neural networks, we define both the hyperparameters that remain constant dur
        "models": ["FNN"],
        "FNN": {
            "structural_params": {
-               "Dense_input": {
-                   "units": mai.Int(min_value=50, max_value=400),
-                   "input_dim": xtrain.shape[-1],
-                   "activation": "relu",
-                   "kernel_initializer": "normal",
-                   "sublayer": mai.Choice(["Dropout", "None"]),
-                   "Dropout": {
-                       "rate": mai.Float(min_value=0.4, max_value=0.6),
-                   },
-               },
                "Dense_hidden": {
                    "num_layers": mai.Int(min_value=0, max_value=3),
-                   "units": mai.Int(min_value=25, max_value=250),
+                   "units": mai.Int(min_value=25, max_value=400),
                    "activation": "relu",
                    "kernel_initializer": "normal",
                    "sublayer": mai.Choice(["Dropout_hidden", "None"]),
@@ -333,12 +324,13 @@ Performance Metrics
 
 The :meth:`pyMAISE.PostProcessor.metrics` function evaluates performance metrics for the training and testing predictions of each model. :meth:`pyMAISE.PostProcessor.metrics` by default evaluates
 
-- r-squared: :math:`\text{R}^2 = 1 - \frac{\sum_{i = 1}^{n}(y_i - \hat{y_i})^2}{\sum_{i = 1}^{n}(y_i - \bar{y_i})^2}`,
-- mean absolute error: :math:`\text{MAE} = \frac{1}{n}\sum_{i = 1}^{n}|y_i - \hat{y_i}|`,
-- mean squared error: :math:`\text{MSE} = \frac{1}{n}\sum_{i = 1}^n(y_i - \hat{y_i})^2`,
-- root mean squared error: :math:`\text{RMSE} = \sqrt{\frac{1}{n}\sum_{i = 1}^n(y_i - \hat{y_i})^2}`,
+- r-squared: :math:`\text{R}^2 = 1 - \frac{\sum_{i = 1}^{n}(y_i - \hat{y_i})^2}{\sum_{i = 1}^{n}(y_i - \bar{y}_i)^2}`,
+- mean absolute error: :math:`\text{MAE} = \frac{1}{n}\sum_{i = 1}^{n}|y_i - \hat{y}_i|`,
+- mean absolute percentage error :math:`\text{MAPE} = \frac{100}{n}\sum_{i = 1}^{n}\frac{|y_i - \hat{y}_i|}{\text{max}(\epsilon, |y_i|)}`,
+- root mean squared error: :math:`\text{RMSE} = \sqrt{\frac{1}{n}\sum_{i = 1}^n(y_i - \hat{y}_i)^2}`,
+- root mean square percentage error: :math:`\text{RMSPE} = 100\sqrt{\frac{1}{n}\sum_{i = 1}^n\Big(\frac{y_i - \hat{y}_i}{\text{max}(\epsilon, |y_i|)}\Big)^2}`
 
-for regression problems where :math:`y` is the actual outcome, :math:`\hat{y}` is the model predicted outcome, :math:`\bar{y}` is the average outcome, and :math:`n` is the number of observations. For classification problems the defaults are
+for regression problems where :math:`y` is the actual outcome, :math:`\hat{y}` is the model predicted outcome, :math:`\bar{y}` is the average outcome, :math:`\epsilon` is an arbitrarily small positive number to avoid undefined values, and :math:`n` is the number of observations. For classification problems the defaults are
 
 - accuracy: :math:`\text{Accuracy} = \frac{\text{Number of correct predictions}}{\text{Total number of predictions}}`,
 - recall: :math:`\text{Recall} = \frac{\text{True positives}}{\text{True positives} + \text{False negatives}}`,
@@ -350,7 +342,7 @@ Additionally, we can supply our own metrics to the ``metrics`` as callables. We 
 Performance Visualized
 ^^^^^^^^^^^^^^^^^^^^^^
 
-To visualize the performance of each of these models we can use :meth:`pyMAISE.PostProcessor.diagonal_validation_plot`, :meth:`pyMAISE.PostProcessor.validation_plot`, and :meth:`pyMAISE.PostProcessor.nn_learning_plot`. The first two methods provide a comparison of the predicted outcomes versus the actual and :meth:`pyMAISE.PostProcessor.nn_learning_plot` provides a neural network learning curve for comparing training and validation performance.
+To visualize the performance of each of these models we can use :meth:`pyMAISE.PostProcessor.diagonal_validation_plot`, :meth:`pyMAISE.PostProcessor.validation_plot`, and :meth:`pyMAISE.PostProcessor.nn_learning_plot`. The first two methods provide a comparison of the predicted outcomes versus the actual and :meth:`pyMAISE.PostProcessor.nn_learning_plot` provides a neural network learning curve for comparing training and validation performance. You can plot neural network structures with :meth:`pyMAISE.PostProcessor.nn_network_plot`.
 
 For classification problems we can create a confusion matrix using :meth:`pyMAISE.PostProcessor.confusion_matrix`.
 
@@ -361,7 +353,8 @@ Finally, the :class:`pyMAISE.PostProcessor` is equipped with several additional 
 
 - :meth:`pyMAISE.PostProcessor.get_params`: get the parameter configurations from a specific model,
 - :meth:`pyMAISE.PostProcessor.get_model`: get the model wrapper,
-- :meth:`pyMAISE.PostProcessor.get_predictions`: get the training and testing predictions from a specific model.
+- :meth:`pyMAISE.PostProcessor.get_predictions`: get the training and testing predictions from a specific model,
+- :meth:`pyMAISE.PostProcessor.print_model`: print a models tuned hyperparameters.
 
 ---------------
 pyMAISE Testing

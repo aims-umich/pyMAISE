@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import ShuffleSplit
 from sklearn.preprocessing import MinMaxScaler
 
@@ -118,7 +119,7 @@ def test_reactor_physics():
         data=data,
         model_configs=[grid_search_configs],
     )
-    metrics = postprocessor.metrics()[
+    metrics = postprocessor.metrics(metrics={"MSE": mean_squared_error})[
         [
             "Model Types",
             "Train MAE",

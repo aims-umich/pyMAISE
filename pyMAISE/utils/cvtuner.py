@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.utils.multiclass import type_of_target
 from tensorflow.keras.backend import clear_session
+from tqdm.auto import tqdm
 
 import pyMAISE.settings as settings
 
@@ -26,6 +27,7 @@ class CVTuner(kt.Tuner):
         tuner_id=None,
         overwrite=False,
         executions_per_trial=1,
+        verbose=0,
         **kwargs,
     ):
         self._objective = objective
@@ -34,6 +36,7 @@ class CVTuner(kt.Tuner):
         self._shuffle = shuffle
         self._mean_test_score = []
         self._std_test_score = []
+        self._verbose = verbose
 
         # Build base keras tuner
         kt.Tuner.__init__(
@@ -54,7 +57,23 @@ class CVTuner(kt.Tuner):
             **kwargs,
         )
 
-    def run_trial(self, trial, x, y):
+        # Progress bar
+        if self._verbose == 0:
+            n_fits = cv if isinstance(cv, int) else cv.n_splits
+            if self.oracle.max_trials:
+                n_fits *= oracle.max_trials
+            else:
+                for hp in self.hypermodel.get_hyperparameters():
+                    n_fits *= len(hp.values)
+
+            self._p = tqdm(
+                range(int(n_fits)),
+                desc=self.hypermodel._name,
+            )
+        else:
+            print(f"Tuning {self.hypermodel._name}")
+
+    def run_trial(self, trial, x, y, *fit_args, **fit_kwargs):
         # Reassign CV depending on what's given
         if isinstance(self._cv, int):
             if (
@@ -97,7 +116,7 @@ class CVTuner(kt.Tuner):
 
             # Evaluate model performance
             if self._metrics is not None:
-                y_val_pred = model.predict(x_val)
+                y_val_pred = model.predict(x_val, verbose=settings.values.verbosity)
 
                 # Round probabilities to correct class based on data format
                 if settings.values.problem_type == settings.ProblemType.CLASSIFICATION:
@@ -113,6 +132,10 @@ class CVTuner(kt.Tuner):
             else:
                 test_score_idx = model.metrics_names.index(self._objective)
                 test_scores.append(model.evaluate(x_val, y_val)[test_score_idx])
+
+            if self._verbose == 0:
+                self._p.n += 1
+                self._p.refresh()
 
         # Reset tensorflow session to reduce RAM usage
         clear_session()

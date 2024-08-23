@@ -200,18 +200,20 @@ def test_metrics(setup_postprocessor):
     metrics = setup_postprocessor.metrics()
 
     # Shape and contents assertions
-    assert metrics.shape == (6, 10)
+    assert metrics.shape == (6, 12)
     assert list(metrics.columns) == [
         "Model Types",
         "Parameter Configurations",
         "Train R2",
         "Train MAE",
-        "Train MSE",
+        "Train MAPE",
         "Train RMSE",
+        "Train RMSPE",
         "Test R2",
         "Test MAE",
-        "Test MSE",
+        "Test MAPE",
         "Test RMSE",
+        "Test RMSPE",
     ]
     assert metrics["Test R2"].to_numpy()[0] == np.max(metrics["Test R2"].to_numpy())
 
@@ -219,18 +221,20 @@ def test_metrics(setup_postprocessor):
     metrics = setup_postprocessor.metrics(y="k")
 
     # Shape and contents assertions
-    assert metrics.shape == (6, 10)
+    assert metrics.shape == (6, 12)
     assert list(metrics.columns) == [
         "Model Types",
         "Parameter Configurations",
         "Train R2",
         "Train MAE",
-        "Train MSE",
+        "Train MAPE",
         "Train RMSE",
+        "Train RMSPE",
         "Test R2",
         "Test MAE",
-        "Test MSE",
+        "Test MAPE",
         "Test RMSE",
+        "Test RMSPE",
     ]
     assert metrics["Test R2"].to_numpy()[0] == np.max(metrics["Test R2"].to_numpy())
 
@@ -238,18 +242,20 @@ def test_metrics(setup_postprocessor):
     metrics = setup_postprocessor.metrics(y=0)
 
     # Shape and contents assertions
-    assert metrics.shape == (6, 10)
+    assert metrics.shape == (6, 12)
     assert list(metrics.columns) == [
         "Model Types",
         "Parameter Configurations",
         "Train R2",
         "Train MAE",
-        "Train MSE",
+        "Train MAPE",
         "Train RMSE",
+        "Train RMSPE",
         "Test R2",
         "Test MAE",
-        "Test MSE",
+        "Test MAPE",
         "Test RMSE",
+        "Test RMSPE",
     ]
     assert metrics["Test R2"].to_numpy()[0] == np.max(metrics["Test R2"].to_numpy())
 
@@ -257,36 +263,40 @@ def test_metrics(setup_postprocessor):
     metrics = setup_postprocessor.metrics(model_type="fnn")
 
     # Shape and contents assertions
-    assert metrics.shape == (2, 10)
+    assert metrics.shape == (2, 12)
     assert list(metrics.columns) == [
         "Model Types",
         "Parameter Configurations",
         "Train R2",
         "Train MAE",
-        "Train MSE",
+        "Train MAPE",
         "Train RMSE",
+        "Train RMSPE",
         "Test R2",
         "Test MAE",
-        "Test MSE",
+        "Test MAPE",
         "Test RMSE",
+        "Test RMSPE",
     ]
     assert metrics["Test R2"].to_numpy()[0] == np.max(metrics["Test R2"].to_numpy())
 
     # Run metrics function (change sort by)
-    metrics = setup_postprocessor.metrics(sort_by="Train MSE")
+    metrics = setup_postprocessor.metrics(sort_by="Train MAE")
 
     # Shape and contents assertions
-    assert metrics.shape == (6, 10)
+    assert metrics.shape == (6, 12)
     assert list(metrics.columns) == [
         "Model Types",
         "Parameter Configurations",
         "Train R2",
         "Train MAE",
-        "Train MSE",
+        "Train MAPE",
         "Train RMSE",
+        "Train RMSPE",
         "Test R2",
         "Test MAE",
-        "Test MSE",
+        "Test MAPE",
         "Test RMSE",
+        "Test RMSPE",
     ]
     assert metrics["Train MAE"].to_numpy()[0] == np.min(metrics["Train MAE"].to_numpy())

@@ -25,6 +25,9 @@ pyMAISE will also install all needed dependencies.
    -  `TensorFlow <https://tensorflow.org>`_
    -  `SciKeras <https://adriangb.com/scikeras/stable/>`_
    -  `Matplotlib <https://matplotlib.org/stable/>`_
+   -  `tqdm <https://tqdm.github.io/>`_
+   -  `pydot <https://github.com/pydot/pydot>`_
+   -  `graphviz <https://graphviz.org/>`_
 
 .. admonition:: Optional
    :class: note
@@ -63,7 +66,14 @@ running or creating pyMAISE benchmarks, install the additional dependencies:
 *************
 
 For the latest features in development or access to benchmark, install
-pyMAISE from source. Clone the repository using ``git`` and running:
+pyMAISE from source. You can install from source without cloning the environment
+by running:
+
+.. code:: sh
+
+   pip install git+https://github.com/myerspat/pyMAISE.git
+
+Alternatively, you can clone the repository using ``git``:
 
 .. code:: sh
 
