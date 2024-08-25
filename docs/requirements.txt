@@ -8,9 +8,11 @@ pandas
 numpy
 scikit-learn
 scikit-optimize
-keras
 tensorflow
 keras-tuner
 xarray
 scikeras
 matplotlib
+pydot
+tqdm
+graphviz
