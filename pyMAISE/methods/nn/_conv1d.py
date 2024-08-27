@@ -1,4 +1,4 @@
-from keras.layers import Conv1D
+from tensorflow.keras.layers import Conv1D
 
 from pyMAISE.methods.nn._layer import Layer
 
@@ -13,8 +13,8 @@ class Conv1DLayer(Layer):
         self._data = super().build_data(self._data, parameters)
 
         # Assert keras non-default variables are defined
-        assert self._data["filters"] != None
-        assert self._data["kernel_size"] != None
+        assert self._data["filters"] is not None
+        assert self._data["kernel_size"] is not None
 
     # ==========================================================================
     # Methods

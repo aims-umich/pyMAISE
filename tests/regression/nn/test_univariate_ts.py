@@ -71,9 +71,8 @@ def test_nn_lstm_univariate_series():
 
     # Creating RNN model
     structural_hyperparameters = {
-        "LSTM_input": {
+        "LSTM_hidden": {
             "units": 4,
-            "input_shape": (1, 1),
         },
         "Dense_output": {
             "units": 1,

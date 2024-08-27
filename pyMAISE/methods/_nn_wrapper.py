@@ -1,8 +1,8 @@
 from math import ceil
 
-from keras.layers import Dense, Dropout
-from keras.models import Sequential
 from scikeras.wrappers import BaseEstimator, KerasRegressor
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 
 import pyMAISE.settings as settings

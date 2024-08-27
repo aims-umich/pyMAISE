@@ -1,5 +1,5 @@
-import keras
 import keras_tuner
+import tensorflow.keras as keras
 
 from pyMAISE import Int
 from pyMAISE.methods import nnHyperModel
@@ -14,7 +14,6 @@ def test_fnn_build():
         "structural_params": {
             "Dense_input": {
                 "units": Int(min_value=25, max_value=250),
-                "input_dim": 6,
                 "activation": "relu",
                 "kernel_initializer": "normal",
                 "sublayer": "Dropout",
@@ -50,7 +49,7 @@ def test_fnn_build():
     }
 
     # Initialize model
-    pyMAISE_model = nnHyperModel(fnn_settings)
+    pyMAISE_model = nnHyperModel(fnn_settings, input_shape=(6,), name="")
 
     # Build Keras model
     keras_model = pyMAISE_model.build(keras_tuner.HyperParameters())
@@ -66,7 +65,6 @@ def test_fnn_build():
     dense_input = keras_model.layers[0].get_config()
     assert dense_input["name"] == "Dense_input_0"
     assert dense_input["units"] >= 25 and dense_input["units"] <= 250
-    assert dense_input["batch_input_shape"] == (None, 6)
     assert dense_input["activation"] == "relu"
     assert dense_input["kernel_initializer"]["class_name"] == "RandomNormal"
 

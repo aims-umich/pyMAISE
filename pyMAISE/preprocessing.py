@@ -5,6 +5,7 @@ import xarray as xr
 from sklearn.model_selection import train_test_split as sklearn_train_test_split
 
 import pyMAISE.settings as settings
+from pyMAISE.utils import _try_clear
 
 
 def read_csv(
@@ -50,8 +51,7 @@ def read_csv(
         ``output_slice``. If a list of file paths is given for ``data`` then this
         corresponds to the second.
     """
-    if settings.values.verbosity > 0:
-        print("Reading data from", path)
+    print("Reading data from", path)
 
     if isinstance(path, str):
         # Read in data from path
@@ -63,6 +63,7 @@ def read_csv(
         )
 
         if input_slice is None and output_slice is None:
+            _try_clear()
             return data
         else:
             assert input_slice is not None and output_slice is not None
@@ -72,6 +73,7 @@ def read_csv(
 
             data = xr.concat([inputs, outputs], dim=data.dims[-1])
 
+            _try_clear()
             return data, inputs, outputs
 
     elif isinstance(path, list):
@@ -96,6 +98,7 @@ def read_csv(
         # Join input and output
         data = inputs.combine_first(outputs)
 
+        _try_clear()
         return data, inputs, outputs
 
     else:
@@ -466,7 +469,30 @@ def train_test_split(
 
 def scale_data(train_data, test_data, scaler):
     """
-    Scale training and testing data using the scaler provided.
+    Scale training and testing data using the scaler provided. This method returns the
+    fit scalar which can be used to scale any additional data.
+
+    Example
+    -------
+
+    Given the following 2D ``xarray.DataArrays`` of shape (samples,
+    features/labels), ``xtrain`` and ``xtest``, we can apply the
+    ``pyMAISE.preprocessing.scale_data()`` method,
+
+    .. code:: python
+
+       from pyMAISE.preprocessing import scale_data
+       from sklearn.preprocessing import MinMaxScaler
+
+       xtrain, xtest, xscaler = scale_data(xtrain, xtest, MinMaxScaler)
+
+    We can then scale an additional dataset, ``xvalid``, that matches the
+    format of ``xtrain`` and ``xtest`` by running
+
+    .. code:: python
+
+       xvalid.values = xscaler.transform(xvalid.values)
+
 
     Parameters
     ----------

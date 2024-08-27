@@ -1,4 +1,4 @@
-from keras.layers import MaxPooling1D
+from tensorflow.keras.layers import MaxPooling1D
 
 from pyMAISE.methods.nn._layer import Layer
 

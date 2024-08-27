@@ -52,13 +52,6 @@ def test_loca_lstm():
 
     # RNN model settings
     structural = {
-        "LSTM_input": {
-            "units": 100,
-            "activation": "tanh",
-            "recurrent_activation": "sigmoid",
-            "return_sequences": True,
-            "input_shape": (396, 56),
-        },
         "LSTM_hidden0": {
             "units": 80,
             "activation": "tanh",
@@ -89,7 +82,6 @@ def test_loca_lstm():
             "optimizer": "Adam",
             "Adam": {
                 "learning_rate": mai.Choice([0.0001, 0.001]),
-                "clipnorm": 1.0,
                 "clipvalue": 0.5,
             },
             "compile_params": {
@@ -125,4 +117,4 @@ def test_loca_lstm():
         new_model_settings=new_model_settings,
         yscaler=yscaler,
     )
-    assert postprocessor.metrics().shape == (2, 10)
+    assert postprocessor.metrics().shape == (2, 12)

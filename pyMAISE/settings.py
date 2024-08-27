@@ -46,7 +46,6 @@ class Settings:
         if self._verbosity <= 1:
             os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
             tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-            tf.keras.utils.disable_interactive_logging()
         else:
             print(
                 "Num GPUs Available: ",
@@ -61,6 +60,7 @@ class Settings:
             random.seed(self._random_state)
             np.random.seed(self._random_state)
             tf.compat.v1.set_random_seed(self._random_state)
+            tf.random.set_seed(self._random_state)
 
             # Deterministic tensorflow
             os.environ["TF_DETERMINISTIC_OPS"] = "1"
