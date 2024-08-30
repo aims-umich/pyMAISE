@@ -35,6 +35,8 @@ from pyMAISE.methods import (
     NeuralNetsRegression,
     RandomForest,
     nnHyperModel,
+    GaussianProcess,
+    RidgeRegression
 )
 from pyMAISE.utils import CVTuner, _try_clear
 
@@ -289,6 +291,8 @@ class Tuner:
         "DT": DecisionTree,
         "RF": RandomForest,
         "KN": KNeighbors,
+        "GP": GaussianProcess,
+        "RD": RidgeRegression,
     }
 
     def __init__(self, xtrain, ytrain, model_settings):

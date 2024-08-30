@@ -8,3 +8,5 @@ from ._nn_wrapper import NeuralNetsWrapper
 from ._rforest import RandomForest
 from ._svm import SVM
 from .nn._nn_hypermodel import nnHyperModel
+from ._gaussian_process import GaussianProcess
+from ._ridge import RidgeRegression
