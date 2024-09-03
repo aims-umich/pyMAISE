@@ -79,6 +79,7 @@ From pyMAISE, we cannot directly access the data set load functions.
    pyMAISE.datasets.load_rea
    pyMAISE.datasets.load_chf
    pyMAISE.datasets.load_loca
+   pyMAISE.datasets.load_anomaly
 
 .. _preprocessing_api:
 

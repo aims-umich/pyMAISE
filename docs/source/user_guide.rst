@@ -69,7 +69,8 @@ pyMAISE offers several data sets for building and testing ML models. Each of the
 - :doc:`benchmarks/bwr`: effect of BWR core parameters on :math:`k` and peaking factors,
 - :doc:`benchmarks/HTGR_microreactor`: effect of control drum angle on neutron flux,
 - :doc:`benchmarks/rod_ejection`: effect of reactor kinetics parameters on max power, burst width, max fuel centerline temperature, and average coolant temperature,
-- :doc:`benchmarks/chf`: effect of experimental parameters on critical heat flux (CHF).
+- :doc:`benchmarks/chf`: effect of experimental parameters on critical heat flux (CHF),
+- :doc:`benchmarks/anomaly`: effect of high-voltage converter modulator (HVCM) parameters for the Spallation Neutron Source linear accelerators on fault prediction.
 
 Each data set has a load function in the :mod:`pyMAISE.datasets` module. For details, refer to the :doc:`pymaise_api`.
 

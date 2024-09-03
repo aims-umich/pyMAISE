@@ -532,24 +532,48 @@ def load_anomaly(
     timestep_step=1,
 ):
     """
-    Load time series electronic signal data from particle accelerator power
-    systems. This data comes from:cite:`https://doi.org/10.1016/j.dib.2022.108473.`
-    The DTL dataset is used, and consists of 4500 time-independent features that
-    describe faulty or normal wave pulses in the Oak Ridge partical accelerator,
-    which are propagated out in time. There are three outputs for load_anomaly.
-    - ``Fault``: Failiure of the accelerator
-    - ``Normal``: Working pulse of the accelerator
-    - ``Fault Type``: Type of fault of the accelerator
-    If binary classification, the ``Fault Type`` is removed.
+    Load time series electronic signal data from `Mendeley <https://da\
+    ta.mendeley.com/datasets/kbbrw99vh8/5>`_ provided by :cite:`RADAIDEH2022103704,\
+    radaideh2023early`. This dataset derives from the measurement of 14 parameters
+    of the high voltage converter modulators (HVCMs) used at the Spallation
+    Neutron Source facility. Each of these waveforms were classified as "fault"
+    or "run" depending on the failure of the HVCM during operation.
 
+    The 14 waveform inputs are:
 
+    - ``A+IGBT-I: current``: Current passing through the IGBT switch of \
+    phase A+ in Qa1 (:math:`A`)
+    - ``A+*IGBT-I: current``: Current passing through the IGBT switch of \
+    phase A+\\* in Qa3 (:math:`A`)
+    - ``B+IGBT-I: current``: Current passing through the IGBT switch of \
+    phase B+ in Qb1 (:math:`A`)
+    - ``B+*IGBT-I: current``: Current passing through the IGBT switch of \
+    phase B+\\* in Qb3 (:math:`A`)
+    - ``C+IGBT-I: current``: Current passing through the IGBT switch of \
+    phase C+ in Qc1 (:math:`A`)
+    - ``C+*IGBT-I: current``: Current passing through the IGBT switch of \
+    phase C+\\* in Qc3 (:math:`A`)
+    - ``A-Flux``: Magnetic flux density for phase A in transformer XA (:math:`-`)
+    - ``B-Flux``: Magnetic flux density for phase B in transformer XB (:math:`-`)
+    - ``C-Flux``: Magnetic flux density for phase C in transformer XC (:math:`-`)
+    - ``Mod-V``: Modulator voltage (:math:`V`)
+    - ``Mod-I``: Modulator current (:math:`A`)
+    - ``CB-I``: Cap bank current (:math:`-`)
+    - ``CB-V``: Cap bank voltage (:math:`V`)
+    - ``DV/DT``: Time derivative change of the Mod\\-V voltage (:math:`-`)
+
+    There is one output for this dataset:
+
+    - ``Class_Run``/``Class_Fault``: Whether a waveform is a part of a system fault
 
     Parameters
     ----------
     input_path: str
-        Path to input file.
+        Path to input file. Raw data can be found at `Mendeley <https://da\
+        ta.mendeley.com/datasets/kbbrw99vh8/5>`_
     output_path: str
-        Path to output file.
+        Path to output file. Raw data can be found at `Mendeley <https://da\
+        ta.mendeley.com/datasets/kbbrw99vh8/5>`_
     stack_series: bool, default=False
         If true, then the samples and time steps dimensions are combined.
         ``propagate_output`` must be true for ``stack_series`` to be true.
