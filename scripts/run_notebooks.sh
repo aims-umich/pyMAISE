@@ -10,6 +10,7 @@ declare -a notebooks=(
   "HTGR_microreactor"
   "rod_ejection"
   "chf"
+  "anomaly"
 )
 
 for notebook in "${notebooks[@]}"
