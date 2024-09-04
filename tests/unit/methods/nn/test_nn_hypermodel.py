@@ -3,9 +3,12 @@ import tensorflow.keras as keras
 
 from pyMAISE import Int
 from pyMAISE.methods import nnHyperModel
+import pyMAISE as mai
 
 
 def test_fnn_build():
+    mai.init(problem_type="regression")
+
     # Define feed forward neural network settings
     fnn_settings = {
         "structural_params": {

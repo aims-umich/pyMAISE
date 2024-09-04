@@ -22,6 +22,11 @@ Welcome to the pyMAISE benchmarked Jupyter Notebooks! These notebooks include th
 
 **Classification**
 
+.. toctree::
+   :maxdepth: 1
+
+   benchmarks/anomaly.ipynb
+
 -----------------------
 Creating Your Benchmark
 -----------------------

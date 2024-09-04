@@ -520,3 +520,209 @@ def load_loca(stack_series=False):
             },
         )
         return nominal_data, perturbed_data
+
+
+def load_anomaly(
+    input_path,
+    output_path,
+    stack_series=False,
+    multiclass=False,
+    propagate_output=False,
+    non_faulty_frac=1.0,
+    timestep_step=1,
+):
+    """
+    Load time series electronic signal data from `Mendeley <https://da\
+    ta.mendeley.com/datasets/kbbrw99vh8/5>`_ provided by :cite:`RADAIDEH2022103704,\
+    radaideh2023early`. This dataset derives from the measurement of 14 parameters
+    of the high voltage converter modulators (HVCMs) used at the Spallation
+    Neutron Source facility. Each of these waveforms were classified as "fault"
+    or "run" depending on the failure of the HVCM during operation.
+
+    The 14 waveform inputs are:
+
+    - ``A+IGBT-I: current``: Current passing through the IGBT switch of \
+    phase A+ in Qa1 (:math:`A`)
+    - ``A+*IGBT-I: current``: Current passing through the IGBT switch of \
+    phase A+\\* in Qa3 (:math:`A`)
+    - ``B+IGBT-I: current``: Current passing through the IGBT switch of \
+    phase B+ in Qb1 (:math:`A`)
+    - ``B+*IGBT-I: current``: Current passing through the IGBT switch of \
+    phase B+\\* in Qb3 (:math:`A`)
+    - ``C+IGBT-I: current``: Current passing through the IGBT switch of \
+    phase C+ in Qc1 (:math:`A`)
+    - ``C+*IGBT-I: current``: Current passing through the IGBT switch of \
+    phase C+\\* in Qc3 (:math:`A`)
+    - ``A-Flux``: Magnetic flux density for phase A in transformer XA (:math:`-`)
+    - ``B-Flux``: Magnetic flux density for phase B in transformer XB (:math:`-`)
+    - ``C-Flux``: Magnetic flux density for phase C in transformer XC (:math:`-`)
+    - ``Mod-V``: Modulator voltage (:math:`V`)
+    - ``Mod-I``: Modulator current (:math:`A`)
+    - ``CB-I``: Cap bank current (:math:`-`)
+    - ``CB-V``: Cap bank voltage (:math:`V`)
+    - ``DV/DT``: Time derivative change of the Mod\\-V voltage (:math:`-`)
+
+    There is one output for this dataset:
+
+    - ``Class_Run``/``Class_Fault``: Whether a waveform is a part of a system fault
+
+    .. note::
+
+        The outputs returned by this are not one-hot encoded. It is a
+        single label with class "Run" and "Fault".
+
+    Parameters
+    ----------
+    input_path: str
+        Path to input file. Raw data can be found at `Mendeley <https://da\
+        ta.mendeley.com/datasets/kbbrw99vh8/5>`_
+    output_path: str
+        Path to output file. Raw data can be found at `Mendeley <https://da\
+        ta.mendeley.com/datasets/kbbrw99vh8/5>`_
+    stack_series: bool, default=False
+        If true, then the samples and time steps dimensions are combined.
+        ``propagate_output`` must be true for ``stack_series`` to be true.
+    multiclass: bool, default=False
+        If true, then the multiclass case is returned with 8 possible
+        classifications: ``Normal``, ``IGBT Fault``, `` CBor TPS Fault``,
+        ``Driver Fault``, ``Flux Fault``, ``DV/DT Fault``,
+        ``SCR AC Input Fault``, or ``Misc/Unknown``. If this is false then
+        the binary class is returned (``Run`` or ``Fault``).
+    non_faulty_frac: float, default=1.0
+        The fraction of non-faulty data to include.
+    timestep_step: int, default=1
+        Time steps are taken every other ``timestep_step``. When
+        ``timestep_step == 1`` all timesteps are given.
+
+    Returns
+    -------
+    inputs: xarray.DataArray
+        14 inputs.
+    outputs: xarray.DataArray
+        1 output.
+    """
+    # Load the data
+    X = np.load(input_path)[:, ::timestep_step, :]
+    Y = np.load(
+        output_path,
+        allow_pickle=True,
+    ).astype(
+        str
+    )[:, 1:]
+
+    # Get desired fraction of non-faulty pulses
+    run_idxs = np.argwhere(Y[:, 0] == "Run").flatten()
+    faulty_idxs = np.argwhere(Y[:, 0] == "Fault").flatten()
+    frac_run_idxs = np.random.choice(
+        run_idxs, size=int(run_idxs.size * non_faulty_frac), replace=False
+    )
+    idxs = np.sort(np.concatenate((faulty_idxs, frac_run_idxs), axis=0))
+
+    X = X[idxs,]
+    Y = Y[idxs,]
+
+    if multiclass:
+        multiclass_labels = {
+            "IGBT Fault": ["IGBT"],
+            "CB or TPS Fault": ["CB", "CapBank", "TPS"],
+            "Driver Fault": ["Driver"],
+            "Flux Fault": ["Flux", "FLUX"],
+            "DV/DT Fault": ["DV/DT"],
+            "SCR AC Input Fault": ["SCR"],
+        }
+
+        # Rename cadidates to class labels
+        for label, options in multiclass_labels.items():
+            for option in options:
+                Y[
+                    np.argwhere(np.char.find(Y[:, -1], option) != -1).flatten(), 1
+                ] = label
+
+        # Change all other failures to unknown
+        for i in range(Y.shape[0]):
+            unknown = True
+
+            for label in ["Normal"] + list(multiclass_labels.keys()):
+                if Y[i, 1] == label:
+                    unknown = False
+                    break
+
+            if unknown:
+                Y[i, 1] = "Misc/Unknown"
+
+    Y = Y[:, [int(multiclass)]]
+
+    if propagate_output:
+        Y = np.transpose(
+            np.broadcast_to(Y[..., None], Y.shape + (X.shape[1],)), axes=(0, 2, 1)
+        )
+
+    input_col_names = [
+        "A+IGBT-I: current",
+        "A+*IGBT-I: current",
+        "B+IGBT-I: current",
+        "B+*IGBT-I: current",
+        "C+IGBT-I: current",
+        "C+*IGBT-I: current",
+        "A-Flux",
+        "B-Flux",
+        "C-Flux",
+        "Mod-V",
+        "Mod-I",
+        "CB-I",
+        "CB-V",
+        "DV/DT",
+    ]
+
+    # If stack_series we combine samples and time steps dimensions
+    if stack_series:
+        if propagate_output is False:
+            raise RuntimeError("propagate_output must be True if stack_series is True")
+
+        X = X.reshape((-1, X.shape[-1]))
+        Y = Y.reshape((-1, Y.shape[-1]))
+
+        inputs = xr.DataArray(
+            X,
+            coords={
+                "time steps": np.arange(X.shape[0]),
+                "features": input_col_names,
+            },
+        )
+        outputs = xr.DataArray(
+            Y,
+            coords={
+                "time steps": np.arange(Y.shape[0]),
+                "features": ["Class"],
+            },
+        )
+
+        return inputs, outputs
+
+    else:
+        inputs = xr.DataArray(
+            X,
+            coords={
+                "samples": np.arange(X.shape[0]),
+                "time steps": np.arange(X.shape[1]),
+                "features": input_col_names,
+            },
+        )
+
+        outputs = xr.DataArray(
+            Y,
+            coords=(
+                {
+                    "samples": np.arange(Y.shape[0]),
+                    "time steps": np.arange(Y.shape[1]),
+                    "features": ["Class"],
+                }
+                if propagate_output
+                else {
+                    "samples": np.arange(Y.shape[0]),
+                    "features": ["Class"],
+                }
+            ),
+        )
+
+        return inputs, outputs

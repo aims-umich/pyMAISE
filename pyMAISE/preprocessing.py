@@ -419,6 +419,7 @@ class SplitSequence:
 def train_test_split(
     data,
     test_size=0.3,
+    shuffle=True,
 ):
     """
     Split data into training and testing data sets.
@@ -429,6 +430,8 @@ def train_test_split(
         Data to be split. Assumes the first dimension is the sample dimension.
     test_size: float between 0 and 1
         Percentage of the data used for testing.
+    shuffle: bool, default=False
+        Shuffle samples during split.
 
     Returns
     -------
@@ -452,6 +455,7 @@ def train_test_split(
         samples_idx,
         test_size=test_size,
         random_state=settings.values.random_state,
+        shuffle=shuffle,
     )
 
     # Split into train and test using indices

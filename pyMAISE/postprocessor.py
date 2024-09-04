@@ -1082,7 +1082,8 @@ class PostProcessor:
         test_cm = confusion_matrix(y_true=ytest, y_pred=yhat_test)
 
         # Axes
-        axs = axs if axs is not None else [plt.gca(), plt.gca()]
+        if axs is None:
+            _, axs = plt.subplots(1, 2)
 
         # Confusion matrix display
         ConfusionMatrixDisplay(confusion_matrix=train_cm, display_labels=labels).plot(
@@ -1111,5 +1112,8 @@ class PostProcessor:
                     ha="center",
                     va="center",
                 )
+
+        axs[0].set_title("Training Set")
+        axs[1].set_title("Testing Set")
 
         return axs
