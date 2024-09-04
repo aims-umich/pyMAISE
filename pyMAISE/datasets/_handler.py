@@ -566,6 +566,11 @@ def load_anomaly(
 
     - ``Class_Run``/``Class_Fault``: Whether a waveform is a part of a system fault
 
+    .. note::
+
+        The outputs returned by this are not one-hot encoded. It is a
+        single label with class "Run" and "Fault".
+
     Parameters
     ----------
     input_path: str
@@ -588,6 +593,13 @@ def load_anomaly(
     timestep_step: int, default=1
         Time steps are taken every other ``timestep_step``. When
         ``timestep_step == 1`` all timesteps are given.
+
+    Returns
+    -------
+    inputs: xarray.DataArray
+        14 inputs.
+    outputs: xarray.DataArray
+        1 output.
     """
     # Load the data
     X = np.load(input_path)[:, ::timestep_step, :]
