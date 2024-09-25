@@ -9,4 +9,10 @@ from ._rforest import RandomForest
 from ._svm import SVM
 from .nn._nn_hypermodel import nnHyperModel
 from ._gaussian_process import GaussianProcess
+from ._gradient_boosting import GradientBoosting
 from ._ridge import RidgeRegression
+from ._elastic import ElasticNet
+from ._extra_trees import ExtraTrees
+from ._adaboost import AdaBoost
+from ._multi_output import MultiOutput
+from ._stacking import Stacking

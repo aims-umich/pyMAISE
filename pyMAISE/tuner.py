@@ -36,7 +36,13 @@ from pyMAISE.methods import (
     RandomForest,
     nnHyperModel,
     GaussianProcess,
-    RidgeRegression
+    RidgeRegression,
+    GradientBoosting,
+    ElasticNet,
+    AdaBoost,
+    ExtraTrees,
+    MultiOutput,
+    Stacking,
 )
 from pyMAISE.utils import CVTuner, _try_clear
 
@@ -293,6 +299,12 @@ class Tuner:
         "KN": KNeighbors,
         "GP": GaussianProcess,
         "RD": RidgeRegression,
+        "GB": GradientBoosting,
+        "EN": ElasticNet,
+        "ET": ExtraTrees,
+        "AB": AdaBoost,
+        "MultiOutput": MultiOutput,
+        "Stacking": Stacking,
     }
 
     def __init__(self, xtrain, ytrain, model_settings):
