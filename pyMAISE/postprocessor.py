@@ -23,7 +23,7 @@ import tensorflow as tf
 import pyMAISE.settings as settings
 from pyMAISE.tuner import Tuner
 from pyMAISE.utils import _try_clear
-from pyMAISE.utils.cvtuner import determine_class_from_probabilities
+from pyMAISE.utils.trial import determine_class_from_probabilities
 
 
 class PostProcessor:
