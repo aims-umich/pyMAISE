@@ -60,6 +60,12 @@ class Settings:
             os.environ["TF_DETERMINISTIC_OPS"] = "1"
             os.environ["TF_CUBNN_DETERMINISTIC"] = "1"
 
+        if self._cuda_visible_devices == "-1" and self._run_parallel is True:
+            raise RuntimeError(
+                "Parallel running is only supported on GPUs; "
+                + "therefore, CUDA_VISIBLE_DEVICES cannot be '-1'"
+            )
+
     # Getters
     @property
     def problem_type(self) -> ProblemType:
