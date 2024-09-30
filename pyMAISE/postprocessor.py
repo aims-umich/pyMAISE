@@ -1,5 +1,6 @@
 import copy
 import math
+import pickle
 
 import keras_tuner as kt
 import matplotlib.pyplot as plt
@@ -506,6 +507,127 @@ class PostProcessor:
                     ].idxmin()
 
         return idx
+
+    def save_models(
+        self,
+        num_models=10,
+        idxs=None,
+        model_types=None,
+        sort_by=None,
+        direction=None,
+        directory=".",
+    ):
+        """
+        Saves the top models. Models are names as ``<Model Type>_<Index in to metrics
+        table>``.
+
+        Parameters
+        ----------
+        num_models: int, default=None
+            Number of models to save.
+        idxs: int, list of ints, None, default=None
+            The indices in the :meth:`pyMAISE.PostProcessor.metrics` pandas.DataFrame.
+            If ``None``, then ``sort_by`` is used.
+        model_types: str, list of str, or None, default=None
+            The model name(s) to get. Will get the best model predictions based on
+            ``sort_by``.
+        sort_by: str or None, detault=None
+            The metric to sort the pandas.DataFrame from
+            :meth:`pyMAISE.PostProcessor.metrics` by. If ``None`` then
+            ``test r2_score`` is used for :attr:`pyMAISE.ProblemType.REGRESSION`
+            and ``test accuracy_score`` is used for
+            :attr:`pyMAISE.ProblemType.CLASSIFICATION`.
+        direction: 'min', 'max', or None, default=None
+            The direction to ``sort_by``. It is only required if ``sort_by`` is not
+            a default metric.
+        directory: str, default="."
+            Directory to save the models to. All sklearn models will be saved as
+            pickles and the keras models will be in TensorFlow's SavedModel
+            format.
+        """
+        # Get indices
+        if idxs:
+            if isinstance(idxs, int):
+                idxs = [idxs]
+            elif not isinstance(idxs, list) and not isinstance(idxs, np.ndarray):
+                raise TypeError(
+                    "idxs must be an int, list of ints, np.ndarray of ints, or None"
+                )
+
+        # Get model_types
+        if model_types:
+            if isinstance(model_types, str):
+                model_types = [model_types]
+            elif not isinstance(model_types, list) and not isinstance(
+                model_types, np.ndarray
+            ):
+                raise TypeError(
+                    "model_types must be a string, list of strings, "
+                    + "np.ndarray of strings, or None"
+                )
+
+        # Get sort if not given and ascending
+        ascending = True if direction == "min" else False
+
+        if sort_by is None:
+            sort_by = (
+                "Test R2"
+                if settings.values.problem_type == settings.ProblemType.REGRESSION
+                else "Test Accuracy"
+            )
+
+            ascending = False
+
+        # Get indices if not given
+        if idxs is None:
+            # Sort models
+            sorted_models = self._models[
+                ["Model Types", "Parameter Configurations", "Model Wrappers", sort_by]
+            ].sort_values(sort_by, ascending=ascending)
+
+            # Filter models by model type
+            if model_types:
+                sorted_models = sorted_models[
+                    sorted_models["Model Types"].isin(set(model_types))
+                ]
+
+            idxs = sorted_models.index.values[:num_models]
+
+        # Iterate through idxs, train the models, and save them
+        p = (
+            tqdm(
+                range(len(idxs)),
+                desc=f"{self._models['Model Types'][idxs[0]]}_{idxs[0]}",
+            )
+            if settings.values.verbosity == 0
+            else None
+        )
+        for idx in idxs:
+            if p:
+                p.desc = f"{self._models['Model Types'][idx]}_{idx}"
+                p.refresh()
+
+            # Train model
+            model = self.get_model(idx=idx)
+
+            # Save model
+            if isinstance(model, tf.keras.models.Sequential):
+                model.save(f"{directory}/{self._models['Model Types'][idx]}_{idx}")
+            else:
+                pickle.dump(
+                    model,
+                    open(
+                        f"{directory}/{self._models['Model Types'][idx]}_{idx}.pkl",
+                        "wb",
+                    ),
+                )
+
+            if p:
+                p.n += 1
+                p.refresh()
+
+        if p:
+            _try_clear()
 
     def get_predictions(self, idx=None, model_type=None, sort_by=None, direction=None):
         """
