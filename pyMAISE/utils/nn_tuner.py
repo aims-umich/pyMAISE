@@ -90,17 +90,27 @@ class NNTuner(kt.engine.tuner.Tuner):
         self.hypermodel.declare_hyperparameters(hp)
         self.oracle.update_space(hp)
 
-        with Manager() as manager:
-            hps = manager.list()
+        if settings.values.run_parallel:
+            with Manager() as manager:
+                hps = manager.list()
 
-            process = Process(
-                target=self._activate_conditions,
-                args=(hps, self.hypermodel, self.oracle),
-            )
-            process.start()
-            process.join()
-            assert process.exitcode == 0
-            process.terminate()
+                process = Process(
+                    target=self._activate_conditions,
+                    args=(hps, self.hypermodel, self.oracle),
+                )
+                process.start()
+                process.join()
+                assert process.exitcode == 0
+                process.terminate()
+
+                # Update hyperparameter space
+                self.oracle.hyperparameters = hps[0]
+
+                hp.ensure_active_values()
+
+        else:
+            hps = []
+            self._activate_conditions(hps, self.hypermodel, self.oracle)
 
             # Update hyperparameter space
             self.oracle.hyperparameters = hps[0]
