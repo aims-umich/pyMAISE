@@ -5,6 +5,7 @@ import os
 import numpy as np
 import keras_tuner as kt
 from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.utils.multiclass import type_of_target
 from tqdm.auto import tqdm
 
 import pyMAISE.settings as settings
@@ -34,7 +35,8 @@ class NNTuner(kt.engine.tuner.Tuner):
         self.oracle = oracle
         self.hypermodel = hypermodel
         self._objective = objective
-        self._cv = self._init_cv(cv, shuffle)
+        self._cv = cv
+        self._shuffle = shuffle
         self._metrics = metrics
         self._verbose = verbose
         self._executions_per_trial = executions_per_trial
@@ -65,21 +67,6 @@ class NNTuner(kt.engine.tuner.Tuner):
 
         # Reloading state.
         self._populate_initial_space()
-
-        # Initialize progress bar
-        if self._verbose == 0:
-            num_trials = (
-                self.oracle.max_trials
-                if self.oracle.max_trials
-                else np.prod(
-                    [len(hp._values) for hp in self.hypermodel.get_hyperparameters()]
-                )
-            ) * self._cv.n_splits
-
-            self._p = tqdm(range(int(num_trials)), desc=self.hypermodel._name)
-
-        else:
-            print(f"Tuning {self.hypermodel._name}")
 
     # =======================================================================
     # Methods
@@ -121,6 +108,24 @@ class NNTuner(kt.engine.tuner.Tuner):
         if "verbose" in fit_kwargs:
             self._verbose = fit_kwargs.get("verbose")
             self.oracle.verbose = self._verbose
+
+        # Initialize CV
+        self._cv = self._init_cv(self._cv, self._shuffle, y)
+
+        # Initialize progress bar
+        if self._verbose == 0:
+            num_trials = (
+                self.oracle.max_trials
+                if self.oracle.max_trials
+                else np.prod(
+                    [len(hp._values) for hp in self.hypermodel.get_hyperparameters()]
+                )
+            ) * self._cv.n_splits
+
+            self._p = tqdm(range(int(num_trials)), desc=self.hypermodel._name)
+
+        else:
+            print(f"Tuning {self.hypermodel._name}")
 
         {True: self._parallel_search, False: self._serial_search}[
             settings.values.run_parallel
@@ -296,9 +301,12 @@ class NNTuner(kt.engine.tuner.Tuner):
     # =======================================================================
     # Static Methods
     @staticmethod
-    def _init_cv(cv, shuffle):
+    def _init_cv(cv, shuffle, y):
         if isinstance(cv, int):
-            if settings.values.problem_type == settings.ProblemType.CLASSIFICATION:
+            if (
+                settings.values.problem_type == settings.ProblemType.CLASSIFICATION
+                and type_of_target(y) in ("binary", "multiclass")
+            ):
                 return StratifiedKFold(
                     n_splits=cv,
                     shuffle=shuffle,
