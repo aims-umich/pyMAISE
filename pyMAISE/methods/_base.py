@@ -6,9 +6,13 @@ class BaseModel(ABC):
         """
         Initialize the model with default and user-provided parameters.
 
-        :param parameters: Dictionary of user-provided parameters.
-        :param default_params: Dictionary of default parameters in the format: {
-            'variable_name': [default_value, type, validator(optional)] }
+        Parameters
+        ----------
+        parameters : dict, optional
+            Dictionary of user-provided parameters.
+        default_params : dict, optional
+            Dictionary of default parameters in the format:
+            {'variable_name': [default_value, type, validator(optional)]}
         """
 
         # Keep sets for what problems each variables is for
@@ -26,9 +30,12 @@ class BaseModel(ABC):
         """
         Set default parameters based on the default_params dictionary.
 
-        Requires default parameters to be following format:
-            { 'variable_name': [default_value,
-            type(Regression/Classification/Both), validator(optional)] }
+        Parameters
+        ----------
+        default_params : dict
+            Requires default parameters to be in the following format:
+            {'variable_name': [default_value,
+                type(Regression/Classification/Both), validator(optional)]}
         """
         for param, (default_value, prob_type, validator) in default_params.items():
             # Create the variable
@@ -64,7 +71,7 @@ class BaseModel(ABC):
                 continue
             else:
                 raise ValueError(
-                    f"Please put a valid problem type for {param}: "
+                    f"Please provide a valid problem type for {param}: "
                     + "BOTH/REGRESSION/CLASSIFICATION/NONE"
                 )
 
@@ -72,7 +79,10 @@ class BaseModel(ABC):
         """
         Update model parameters based on user-provided dictionary.
 
-        :param parameters: Dictionary of user-provided parameters.
+        Parameters
+        ----------
+        parameters : dict
+            Dictionary of user-provided parameters.
         """
         for key, value in parameters.items():
             protected_key = f"_{key}"
@@ -85,14 +95,38 @@ class BaseModel(ABC):
                 )
 
     def _get_regression_model(self, model):
-        """Returns the Regression model with the given parameters."""
+        """
+        Returns the Regression model with the given parameters.
+
+        Parameters
+        ----------
+        model : class
+            The model class to instantiate with regression parameters.
+
+        Returns
+        -------
+        object
+            Instantiated regression model.
+        """
         model_params = {
             attr: getattr(self, attr) for attr in self.__regression_attributes
         }
         return model(**model_params)
 
     def _get_classification_model(self, model):
-        """Returns the Classification model with the given parameters."""
+        """
+        Returns the Classification model with the given parameters.
+
+        Parameters
+        ----------
+        model : class
+            The model class to instantiate with classification parameters.
+
+        Returns
+        -------
+        object
+            Instantiated classification model.
+        """
         model_params = {
             attr: getattr(self, attr) for attr in self.__classification_attributes
         }
@@ -100,4 +134,12 @@ class BaseModel(ABC):
 
     @abstractmethod
     def regressor(self):
+        """
+        Abstract method to define and return a model based on the parameters set in the
+        class and problem type.
+
+        This method should be implemented by subclasses to specify the model
+        architecture and return an instantiated model object that is ready for training
+        or evaluation based on problem type.
+        """
         pass

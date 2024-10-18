@@ -100,6 +100,11 @@ class PostProcessor:
             }
         )
 
+        # If we are doing Gaussian Processing, check for standard scaling
+        if "GP" in model_types:
+            self.__check_if_standard_scaled(self._xtrain)
+            self.__check_if_standard_scaled(self._xtest)
+
         # Fit each model to training data and get predicted training
         # and testing from each model
         yhat_train, yhat_test, histories = self._fit()
@@ -130,6 +135,19 @@ class PostProcessor:
 
     # ===========================================================
     # Methods
+    def __check_if_standard_scaled(self, data, name=""):
+        """Check if the data is standardized (mean ~ 0, std ~ 1)."""
+        mean = np.mean(data, axis=0)
+        std = np.std(data, axis=0)
+
+        mean_check = np.allclose(mean, 0, atol=1e-6)  # Check if mean is close to 0
+        std_check = np.allclose(std, 1, atol=1e-6)  # Check if std is close to 1
+
+        if not mean_check or not std_check:
+            raise ValueError(
+                f"{name} data is not standard scaled: " f"mean = {mean}, std = {std}"
+            )
+
     def _fit(self):
         """Fit all models with training data and predict both training and testing
         data."""
