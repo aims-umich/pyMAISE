@@ -38,7 +38,9 @@ Every pyMAISE job requires the initialization of some global settings used throu
 - ``random_state = None``: the global random seed used for pseudo-random algorithms in ML methods,
 - ``num_configs_saved = 5``: the number of hyperparameter configurations to save for each model when tuning,
 - ``new_nn_architecture = True``: pyMAISE's neural network tuning architecture was upgraded using `KerasTuner <https://keras.io/keras_tuner/>`_ :cite:`omalley2019kerastuner`, this boolean defines which architecture you use,
-- ``cuda_visible_devices = None``: sets the ``CUDA_VISIBLE_DEVICES`` environment variable for `TensorFlow <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars>`_ :cite:`tensorflow2015-whitepaper`.
+- ``cuda_visible_devices = None``: sets the ``CUDA_VISIBLE_DEVICES`` environment variable for `TensorFlow <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars>`_ :cite:`tensorflow2015-whitepaper`,
+- ``run_parallel``: run neural network tuning in parallel,
+- ``max_models_per_device``: the maximum number of neural networks training on one GPU at once.
 
 To initialize pyMAISE, we define the settings using :meth:`pyMAISE.init`:
 
@@ -69,7 +71,8 @@ pyMAISE offers several data sets for building and testing ML models. Each of the
 - :doc:`benchmarks/bwr`: effect of BWR core parameters on :math:`k` and peaking factors,
 - :doc:`benchmarks/HTGR_microreactor`: effect of control drum angle on neutron flux,
 - :doc:`benchmarks/rod_ejection`: effect of reactor kinetics parameters on max power, burst width, max fuel centerline temperature, and average coolant temperature,
-- :doc:`benchmarks/chf`: effect of experimental parameters on critical heat flux (CHF).
+- :doc:`benchmarks/chf`: effect of experimental parameters on critical heat flux (CHF),
+- :doc:`benchmarks/anomaly`: effect of high-voltage converter modulator (HVCM) parameters for the Spallation Neutron Source linear accelerators on fault prediction.
 
 Each data set has a load function in the :mod:`pyMAISE.datasets` module. For details, refer to the :doc:`pymaise_api`.
 
@@ -354,7 +357,8 @@ Finally, the :class:`pyMAISE.PostProcessor` is equipped with several additional 
 - :meth:`pyMAISE.PostProcessor.get_params`: get the parameter configurations from a specific model,
 - :meth:`pyMAISE.PostProcessor.get_model`: get the model wrapper,
 - :meth:`pyMAISE.PostProcessor.get_predictions`: get the training and testing predictions from a specific model,
-- :meth:`pyMAISE.PostProcessor.print_model`: print a models tuned hyperparameters.
+- :meth:`pyMAISE.PostProcessor.print_model`: print a models tuned hyperparameters,
+- :meth:`pyMAISE.PostProcessor.save_models`: save the best performing models.
 
 ---------------
 pyMAISE Testing

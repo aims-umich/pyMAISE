@@ -44,7 +44,7 @@ from pyMAISE.methods import (
     MultiOutput,
     Stacking,
 )
-from pyMAISE.utils import CVTuner, _try_clear
+from pyMAISE.utils import NNTuner, _try_clear
 
 
 class Tuner:
@@ -1031,7 +1031,7 @@ class Tuner:
             start_time = time.time()
 
             # Initialize keras-tuner tuner
-            tuner = CVTuner(
+            tuner = NNTuner(
                 objective=objective,
                 cv=cv,
                 shuffle=shuffle,

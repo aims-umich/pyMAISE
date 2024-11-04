@@ -16,6 +16,7 @@ def test_loca_lstm():
         num_configs_saved=2,
         random_state=42,
         cuda_visible_devices="-1",  # Use CPUs only
+        run_parallel=False,
     )
 
     # Load LOCA data and shrink dataset for test speed
