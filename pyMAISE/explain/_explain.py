@@ -225,10 +225,6 @@ class ShapExplainers:
             )
             raise AttributeError(emsg)
 
-        if output_index is None and output_name is not None:
-            names = np.array(self.output_names)
-            output_index = np.argwhere(names == output_name)[0][0]
-
         if output_name is not None and output_name not in self.output_names:
             emsg = (
                 "The output you requested is not defined for this model."
@@ -236,9 +232,13 @@ class ShapExplainers:
             )
             raise NameError(emsg)
 
+        if output_index is None and output_name is not None:
+            names = np.array(self.output_names)
+            output_index = np.argwhere(names == output_name)[0][0]
+
         figsize = (18, 8)
 
-        if method is None and output_index is not None:
+        if method is None and output_index is None:
             output_indexes = [i for i in range(self.n_outputs)]
             methods = self.shap_raw.keys()
 
