@@ -6,6 +6,9 @@ from pyMAISE.explain.shap.explainers import DeepExplainer
 from pyMAISE.explain.shap.explainers import ExactExplainer
 from pyMAISE.explain.shap.plots._beeswarm import summary_legacy as summary_plot
 import matplotlib.pyplot as plt
+from silence_tensorflow import silence_tensorflow
+
+silence_tensorflow("WARNING")
 
 
 def plot_bar_with_labels(df, fig=None, ax=None):
@@ -60,7 +63,7 @@ class ShapExplainers:
             )
 
         # Infer number of outputs from the model prediction of two samples
-        self.n_outputs = self.model.predict(self.X[0:2, :]).shape[1]
+        self.n_outputs = self.model.predict(self.X[0:2, :], verbose=0).shape[1]
         if self.output_names is not None:
             assert len(self.output_names) == self.n_outputs
         else:
@@ -145,8 +148,10 @@ class ShapExplainers:
         background_data = self.X[indices[0:n_background_samples]]
         test_data = self.X[indices[n_background_samples:]]
 
-        self.kernel_e = KernelExplainer(self.model.predict, data=background_data)
-        kernel_shap_values = self.kernel_e.shap_values(test_data, nsamples=n_bootstrap)
+        self.kernel_e = KernelExplainer(self.model, data=background_data)
+        kernel_shap_values = self.kernel_e.shap_values(
+            test_data, nsamples=n_bootstrap, silent=True
+        )
 
         self.shap_raw["KernelSHAP"] = kernel_shap_values
         self.shap_samples["KernelSHAP"] = test_data
