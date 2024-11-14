@@ -6,9 +6,7 @@ from pyMAISE.explain.shap.explainers import DeepExplainer
 from pyMAISE.explain.shap.explainers import ExactExplainer
 from pyMAISE.explain.shap.plots._beeswarm import summary_legacy as summary_plot
 import matplotlib.pyplot as plt
-from silence_tensorflow import silence_tensorflow
 
-silence_tensorflow("WARNING")
 
 
 def plot_bar_with_labels(df, fig=None, ax=None):
