@@ -171,9 +171,11 @@ class ShapExplainers:
             test_x_sample = self.X.copy()
         self.exact_e = ExactExplainer(self.model.predict, self.X)
         exact_shap_values = self.exact_e(test_x_sample).values
-        self.shap_raw["ExactSHAP"] = exact_shap_values.reshape(
-            exact_shap_values.shape[0], exact_shap_values.shape[1], 1
-        )
+        if len(exact_shap_values.shape) != 3:
+            self.shap_raw["ExactSHAP"] = exact_shap_values.reshape(
+                exact_shap_values.shape[0], exact_shap_values.shape[1], 1
+            )
+        self.shap_raw["ExactSHAP"] = exact_shap_values
         self.shap_samples["ExactSHAP"] = test_x_sample
 
     def postprocess_results(self):
