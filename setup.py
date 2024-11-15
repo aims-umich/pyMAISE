@@ -30,6 +30,9 @@ setup(
         "tqdm",
         "pydot",
         "graphviz",
+        "slicer==0.0.8",
+        "numba==0.60.0",
+        "cloudpickle==3.0.0",
     ],
     extras_require={
         "dev": [
