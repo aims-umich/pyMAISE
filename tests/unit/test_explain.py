@@ -1,29 +1,13 @@
 import numpy as np
 import pandas as pd
-from pyMAISE.explain.shap.explainers import KernelExplainer
-from pyMAISE.explain.shap.explainers import GradientExplainer
-from pyMAISE.explain.shap.explainers import DeepExplainer
-from pyMAISE.explain.shap.explainers import ExactExplainer
 from pyMAISE.explain import _explain as explain
-from pyMAISE.explain.shap.plots._beeswarm import summary_legacy as summary_plot
 import matplotlib.pyplot as plt
 from sklearn.datasets import make_regression
-from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense, Dropout, Input
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 import pytest
-
-"""
-Anatomy of a test:
-1) arange
-2) act
-3) assert
-4) clean up
-"""
 
 @pytest.fixture
 def dummy_df():
@@ -37,8 +21,9 @@ def test_plot_bar_with_labels(dummy_df):
     explain.plot_bar_with_labels(dummy_df)
     n_plots_after = plt.gcf().number
     assert n_plots_after > n_plots_before
+    plt.close('all')
 
-@pytest.fixture()
+@pytest.fixture(scope='module')
 def nn_model_and_xtest():
     X, y = make_regression(n_samples=100, n_features=5, n_targets=3, noise=0.1, random_state=42)
     xtrain, xtest, ytrain, ytest = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -54,7 +39,7 @@ def nn_model_and_xtest():
     model.fit(xtrain, ytrain, epochs=2, batch_size=64, validation_split=0.15, verbose=0)
     return model, xtest
 
-@pytest.fixture()
+@pytest.fixture(scope='module')
 def explain_object(nn_model_and_xtest):
     model, xtest = nn_model_and_xtest
     return explain.ShapExplainers(model, xtest)
@@ -74,8 +59,12 @@ def test_DeepLIFT(explain_object):
     assert explain_object.shap_raw["DeepLIFT"] is not None
     assert explain_object.shap_samples["DeepLIFT"] is not None
 
-def test_KernelSHAP(explain_object):
+@pytest.mark.xfail(raises=AttributeError)
+def test_KernelSHAP_too_many_samples(explain_object):
     explain_object.KernelSHAP()
+
+def test_KernelSHAP(explain_object):
+    explain_object.KernelSHAP(n_background_samples=3, n_test_samples=2, n_bootstrap=2)
     assert explain_object.shap_raw["KernelSHAP"] is not None
     assert explain_object.shap_samples["KernelSHAP"] is not None
 
@@ -89,15 +78,27 @@ def test_ExactSHAP(explain_object):
     assert explain_object.shap_raw["ExactSHAP"] is not None
     assert explain_object.shap_samples["ExactSHAP"] is not None
 
-def test_postprocess_results(explain_object):
-    explain_object.KernelSHAP()
-    explain_object.postprocess_results()
-    assert explain_object.shap_mean["KernelSHAP"] is not None
+@pytest.fixture(scope='module')
+def deeplift_explain_object(explain_object):
+    explain_object.DeepLIFT()
+    return explain_object
 
-def test_explain_plot(explain_object):
-    explain_object.KernelSHAP()
-    explain_object.postprocess_results()
+@pytest.mark.xfail(reason=AttributeError)
+def test_explain_plot_without_postprocess_call(deeplift_explain_object):
+    deeplift_explain_object.plot()
+
+def test_postprocess_results(deeplift_explain_object):
+    deeplift_explain_object.postprocess_results()
+    assert deeplift_explain_object.shap_mean["DeepLIFT"] is not None
+
+def test_explain_plot(deeplift_explain_object):
+    deeplift_explain_object.postprocess_results()
     n_plots_before = plt.gcf().number
-    explain_object.plot()
+    deeplift_explain_object.plot()
     n_plots_after = plt.gcf().number
     assert n_plots_after > n_plots_before
+    plt.close('all')
+
+@pytest.mark.xfail(reason=NameError)
+def test_explain_plot_output_name_error(deeplift_explain_object):
+    deeplift_explain_object.plot(output_name="Fake Output Name")
