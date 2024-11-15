@@ -85,7 +85,7 @@ def deeplift_explain_object(explain_object):
 
 @pytest.mark.xfail(reason=AttributeError)
 def test_explain_plot_without_postprocess_call(deeplift_explain_object):
-    deeplift_explain_object.plot()
+    deeplift_explain_object.plot(save_figs=False)
 
 def test_postprocess_results(deeplift_explain_object):
     deeplift_explain_object.postprocess_results()
@@ -94,7 +94,7 @@ def test_postprocess_results(deeplift_explain_object):
 def test_explain_plot(deeplift_explain_object):
     deeplift_explain_object.postprocess_results()
     n_plots_before = plt.gcf().number
-    deeplift_explain_object.plot()
+    deeplift_explain_object.plot(save_figs=False)
     n_plots_after = plt.gcf().number
     assert n_plots_after > n_plots_before
     plt.close('all')
