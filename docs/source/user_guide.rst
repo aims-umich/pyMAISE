@@ -243,9 +243,9 @@ This dictionary is then passed to the grid search tuning function:
 Which will run the grid search. Notice that a ``Linear`` search space was not defined; in this case, the model's parameters are returned for postprocessing, and no tuning takes place.
 
 With the new pyMAISE version, we have added stacking and multi-output, which both add a layer of complexity to getting to model parameters.
-When using stacking models, hyperparameters are accessed through the format ``estimators_{name}_{property}``, where {name} is the identifier for each base estimator in the stack, and {property} is the specific hyperparameter. For example, if you want to set the alpha parameter for a elastic net estimator in a stacking model, you would use estimators_EN_alpha.
-For multi-output tasks with a single model, you can access properties directly using the format ``estimator_{property}``, as there is only one main estimator for all outputs. This allows for a simplified tuning structure in multi-output models, where specifying parameters does not require naming individual base estimators.
-Please note that if multi-output is turned on for models when setting model parameters, the same wrapping is applied and you will need to access model parameters through ``estimator_{property}``.
+When using stacking models, hyperparameters are accessed through the format ``{name}__{property}``, where {name} is the identifier for each base estimator in the stack, and {property} is the specific hyperparameter. For example, if you want to set the alpha parameter for a elastic net estimator in a stacking model, you would use ``EN__alpha``.
+For multi-output tasks with a single model, you can access properties directly using the format ``estimator__{property}``, as there is only one main estimator for all outputs. This allows for a simplified tuning structure in multi-output models, where specifying parameters does not require naming individual base estimators.
+Please note that if multi-output is turned on for models when setting model parameters, the same wrapping is applied and you will need to access model parameters through ``estimator__{property}``.
 
 **Example**
 
@@ -254,8 +254,8 @@ If tuning a stacking model, parameters might be set as:
 .. code-block:: python
 
    stacking_search_spaces = {
-      "estimators_Lasso_alpha": np.linspace(0.0001, 5, 20),
-      "estimators_RF_max_depth": [5, 10, 15],
+      "Lasso__alpha": np.linspace(0.0001, 5, 20),
+      "RF__max_depth": [5, 10, 15],
    }
 
 For a multi-output estimator (this example has a wrapped elsatic net estimator):
@@ -266,7 +266,7 @@ For a multi-output estimator (this example has a wrapped elsatic net estimator):
       "estimator__max_depth": np.linspace(0.0001, 5, 20),
    }
 
-As previously stated, stacking has the option to extend to multi-output without explicitly making a multi-output model. This will require double nesting to get to model parameters as ``estimator_estimators_{name}_{property}``.
+As previously stated, stacking has the option to extend to multi-output without explicitly making a multi-output model. This will require double nesting to get to model parameters as ``estimator__{name}__{property}``. This is so we can access the Stacking object (and it's models) underneath the multi-output wrapper.
 
 Random Search with Classical Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
