@@ -24,6 +24,13 @@ These models are built using `scikit-learn <https://scikit-learn.org/stable/inde
 - flatten,
 - and reshape.
 
+Additionally, pyMAISE supports basic explainability analysis via SHAP for all the ML algorithms listed above. Current SHAP support includes
+
+- DeepLIFT,
+- Integrated Gradients,
+- Kernel SHAP,
+- and Exact SHAP.
+
 Request further neural network layer support as an issue on the `pyMAISE repository <https://github.com/myerspat/pyMAISE>`_. Refer to the sections below for more information, including installation, examples, and use. Use the :ref:`examples` as examples on pyMAISE functionality.
 
 --------
