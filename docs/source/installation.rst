@@ -28,6 +28,9 @@ pyMAISE will also install all needed dependencies.
    -  `tqdm <https://tqdm.github.io/>`_
    -  `pydot <https://github.com/pydot/pydot>`_
    -  `graphviz <https://graphviz.org/>`_
+   -  `slicer <https://slicer.readthedocs.io/>`_
+   -  `cloudpickle <https://github.com/cloudpipe/cloudpickle>`_
+   -  `numba <https://numba.pydata.org/>`_
 
 .. admonition:: Optional
    :class: note
