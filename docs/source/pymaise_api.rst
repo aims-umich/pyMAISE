@@ -186,3 +186,17 @@ in-depth evaluation.
    :template: class.rst
 
    pyMAISE.PostProcessor
+
+Explainability
+---------------
+
+To generate explainability metrics for a model created by pyMAISE, you can use the :class:`pyMAISE.ShapExplainers` to create an explainer object based on a particular SHAP method. Current capabilities include DeepLIFT, KernelSHAP, Exact SHAP, and Integrated Gradients.
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree: stubs
+   :nosignatures:
+   :template: class.rst
+
+   pyMAISE.ShapExplainers
