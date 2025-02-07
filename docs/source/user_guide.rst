@@ -360,6 +360,19 @@ Finally, the :class:`pyMAISE.PostProcessor` is equipped with several additional 
 - :meth:`pyMAISE.PostProcessor.print_model`: print a models tuned hyperparameters,
 - :meth:`pyMAISE.PostProcessor.save_models`: save the best performing models.
 
+Explainability Features
+^^^^^^^^^^^^^^^^^^^^^^^
+
+After creating a model, an explainability analysis can be performed with features in the :class:`pyMAISE.ShapExplainers`. A sample explainability analysis with SHAP is shown in the CHF benchmark. These include
+
+- :meth:`pyMAISE.ShapExplainers.DeepLIFT`: fits a DeepLIFT explainer to evaluate SHAP coefficients,
+- :meth:`pyMAISE.ShapExplainers.IntGradients`: fits an Integrated Gradient explainer to evaluate SHAP coefficients,
+- :meth:`pyMAISE.ShapExplainers.KernelSHAP`: fits a KernelSHAP explainer to evaluate SHAP coefficients,
+- :meth:`pyMAISE.ShapExplainers.Exact_SHAP`: fits an Exact SHAP explainer to evaluate SHAP coefficients,
+- :meth:`pyMAISE.ShapExplainers.postprocess_results`: generates SHAP mean values for plotting functions,
+- :meth:`pyMAISE.ShapExplainers.plot`: makes a beeswarm plot and a bar plot for each SHAP method or for a particular method, and
+- :meth:`pyMAISE.ShapExplainers.plot_bar_only`: makes a bar plot for each or a particular SHAP method.
+
 ---------------
 pyMAISE Testing
 ---------------
