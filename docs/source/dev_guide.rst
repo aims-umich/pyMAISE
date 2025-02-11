@@ -45,7 +45,7 @@ Before cloning the repository, git and Python must be installed on your Linux di
 .. code-block:: sh
 
    # Clone the repository
-   git clone git@github.com:myerspat/pyMAISE.git
+   git clone git@github.com:aims-umich/pyMAISE.git
    cd pyMAISE/
 
    # Checkout the develop branch

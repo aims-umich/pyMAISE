@@ -1,7 +1,7 @@
 # pyMAISE: Michigan Artificial Intelligence Standard Environment
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Tests Status](https://github.com/myerspat/pyMAISE/actions/workflows/CI.yml/badge.svg)](https://github.com/myerspat/pyMAISE/actions/workflows)
+[![Tests Status](https://github.com/aims-umich/pyMAISE/actions/workflows/CI.yml/badge.svg)](https://github.com/aims-umich/pyMAISE/actions/workflows)
 [![Documentation Status](https://readthedocs.org/projects/pymaise/badge/?version=latest)](https://pymaise.readthedocs.io/en/latest/?badge=latest)
 [![PyPI](https://img.shields.io/pypi/v/pyMAISE?color=teal)](https://pypi.org/project/pyMAISE/)
 
@@ -55,12 +55,12 @@ Refer to the [installation guide](https://pymaise.readthedocs.io/en/latest/insta
 
 You can find the pyMAISE benchmarks [here](https://pymaise.readthedocs.io/en/latest/benchmarks.html) or below.
 
-- [MIT Reactor](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/mit_reactor.ipynb)
-- [Reactor Physics](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/reactor_physics.ipynb)
-- [Fuel Performance](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/fuel_performance.ipynb)
-- [Heat Conduction](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/heat_conduction.ipynb)
-- [BWR Micro Core](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/bwr.ipynb)
-- [HTGR Micro-Core Quadrant Power](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/HTGR_microreactor.ipynb)
-- [NEACRP C1 Rod Ejection Accident](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/rod_ejection.ipynb)
-- [Critical Heat Flux (CHF) Prediction](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/chf.ipynb)
-- [Binary Anomaly Detection](https://nbviewer.org/github/myerspat/pyMAISE/blob/develop/docs/source/benchmarks/anomaly.ipynb)
+- [MIT Reactor](https://nbviewer.org/github/aims-umich/pyMAISE/blob/develop/docs/source/benchmarks/mit_reactor.ipynb)
+- [Reactor Physics](https://nbviewer.org/github/aims-umich/pyMAISE/blob/develop/docs/source/benchmarks/reactor_physics.ipynb)
+- [Fuel Performance](https://nbviewer.org/github/aims-umich/pyMAISE/blob/develop/docs/source/benchmarks/fuel_performance.ipynb)
+- [Heat Conduction](https://nbviewer.org/github/aims-umich/pyMAISE/blob/develop/docs/source/benchmarks/heat_conduction.ipynb)
+- [BWR Micro Core](https://nbviewer.org/github/aims-umich/pyMAISE/blob/develop/docs/source/benchmarks/bwr.ipynb)
+- [HTGR Micro-Core Quadrant Power](https://nbviewer.org/github/aims-umich/pyMAISE/blob/develop/docs/source/benchmarks/HTGR_microreactor.ipynb)
+- [NEACRP C1 Rod Ejection Accident](https://nbviewer.org/github/aims-umich/pyMAISE/blob/develop/docs/source/benchmarks/rod_ejection.ipynb)
+- [Critical Heat Flux (CHF) Prediction](https://nbviewer.org/github/aims-umich/pyMAISE/blob/develop/docs/source/benchmarks/chf.ipynb)
+- [Binary Anomaly Detection](https://nbviewer.org/github/aims-umich/pyMAISE/blob/develop/docs/source/benchmarks/anomaly.ipynb)

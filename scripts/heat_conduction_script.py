@@ -44,7 +44,7 @@ np.random.seed(random_state)
 # =======================================================================================
 # Read data
 data = pd.read_csv(
-    "https://raw.githubusercontent.com/myerspat/pyMAISE/develop/pyMAISE/data/heat.csv"
+    "https://raw.githubusercontent.com/aims-umich/pyMAISE/develop/pyMAISE/data/heat.csv"
 )
 X = data.iloc[:, :-1]
 print(X)

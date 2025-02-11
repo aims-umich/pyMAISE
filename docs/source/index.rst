@@ -4,8 +4,8 @@ pyMAISE: Michigan Artificial Intelligence Standard Environment
 
 .. image:: https://img.shields.io/badge/License-Apache_2.0-blue.svg
    :target: https://opensource.org/licenses/Apache-2.0
-.. image:: https://github.com/myerspat/pyMAISE/actions/workflows/CI.yml/badge.svg
-   :target: https://github.com/myerspat/pyMAISE/actions/workflows
+.. image:: https://github.com/aims-umich/pyMAISE/actions/workflows/CI.yml/badge.svg
+   :target: https://github.com/aims-umich/pyMAISE/actions/workflows
 .. image:: https://readthedocs.org/projects/pymaise/badge/?version=latest
    :target: https://pymaise.readthedocs.io/en/latest/?badge=latest
 .. image:: https://img.shields.io/pypi/v/pyMAISE?color=teal
@@ -44,7 +44,7 @@ These models are built using `scikit-learn <https://scikit-learn.org/stable/inde
 - flatten,
 - and reshape.
 
-Request further neural network layer support as an issue on the `pyMAISE repository <https://github.com/myerspat/pyMAISE>`_. Refer to the sections below for more information, including installation, examples, and use. Use the :ref:`examples` as examples on pyMAISE functionality.
+Request further neural network layer support as an issue on the `pyMAISE repository <https://github.com/aims-umich/pyMAISE>`_. Refer to the sections below for more information, including installation, examples, and use. Use the :ref:`examples` as examples on pyMAISE functionality.
 
 .. admonition:: Recommended publication for citing :cite:`MYERS2025105568`, 
    :class: tip
