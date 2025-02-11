@@ -15,12 +15,23 @@ pyMAISE is an artificial intelligence (AI) and machine learning (ML) benchmarkin
 
 - linear regression,
 - lasso regression,
+- ridge regression,
+- elastic net regression,
 - logistic regression,
 - decision tree regression and classification,
+- extra trees regression and classification,
+- adaboost regression and classification,
 - support vector regression and classification,
 - random forest regression and classification,
 - k-nearest neighbors regression and classification,
+- gaussian process regression and classification,
+- gradient boosting regression and classification,
 - sequential neural networks.
+
+pyMAISE now includes support for ensemble methods, expanding its capabilities to enhance classical models. Currently, it offers the following options
+
+- stacking,
+- multi-output,
 
 These models are built using `scikit-learn <https://scikit-learn.org/stable/index.html>`_ and `Keras <https://keras.io>`_ with explainability using `SHAP <https://shap.readthedocs.io/en/latest/index.html>`_ :cite:`scikit-learn, chollet2015keras, NIPS2017_7062`. pyMAISE supports the following neural network layers:
 
@@ -74,15 +85,3 @@ Contents
    data_refs
    software_refs
    license
-
-.. ---------------
-.. Data References
-.. ---------------
-.. .. bibliography:: data_refs.bib
-..    :all:
-
-.. -------------------
-.. Software References
-.. -------------------
-.. .. bibliography:: software_refs.bib
-..    :all:

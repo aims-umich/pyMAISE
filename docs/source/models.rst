@@ -40,6 +40,37 @@ Regression
         "selection" = "cyclic",
    }
 
+**Ridge Regressor**
+
+.. code-block:: python
+
+   "RD": {
+       "alpha" = 1.0,
+       "fit_intercept" = True,
+       "copy_X" = True,
+       "max_iter" = None,
+       "tol" = 1e-3,
+       "solver" = "auto",
+       "positive" = False,
+   }
+
+**ElasticNet Regressor**
+
+.. code-block:: python
+
+   "EN": {
+       "alpha" = 1.0,
+       "l1_ratio" = 0.5,
+       "fit_intercept" = True,
+       "precompute" = False,
+       "max_iter" = 1000,
+       "copy_X" = True,
+       "tol" = 1e-3,
+       "warm_start" = False,
+       "positive" = False,
+       "selection" = "cyclic",
+   }
+
 **Support Vector Machine Regressor**
 
 .. code-block:: python
@@ -96,6 +127,68 @@ Regression
         "max_samples" = None,
    }
 
+**ExtraTrees Regressor**
+
+.. code-block:: python
+
+   "ET": {
+       "n_estimators" = 100,
+       "criterion" = "squared_error",
+       "max_depth" = None,
+       "min_samples_split" = 2,
+       "min_samples_leaf" = 1,
+       "min_weight_fraction_leaf" = 0.0,
+       "max_features" = 1.0,
+       "max_leaf_nodes" = None,
+       "min_impurity_decrease" = 0.0,
+       "bootstrap" = False,
+       "oob_score" = False,
+       "n_jobs" = None,
+       "verbose" = 0,
+       "warm_start" = False,
+       "ccp_alpha" = 0.0,
+       "max_samples" = None,
+   }
+
+**AdaBoost Regressor**
+
+.. code-block:: python
+
+   "AB": {
+       "estimator" = None,
+       "n_estimators" = 50,
+       "learning_rate" = 1.0,
+       "loss" = "linear",
+       "multi_output" = False,
+   }
+
+**Gradient Boosting Regressor**
+
+.. code-block:: python
+
+   "GB": {
+       "loss" = "squared_error",
+       "learning_rate" = 0.1,
+       "n_estimators" = 100,
+       "subsample" = 1.0,
+       "criterion" = "friedman_mse",
+       "min_samples_split" = 2,
+       "min_samples_leaf" = 1,
+       "min_weight_fraction_leaf" = 0.0,
+       "max_depth" = 3,
+       "min_impurity_decrease" = 0.0,
+       "init" = None,
+       "max_features" = None,
+       "alpha" = 0.9,
+       "verbose" = 0,
+       "max_leaf_nodes" = None,
+       "warm_start" = False,
+       "validation_fraction" = 0.1,
+       "n_iter_no_change" = None,
+       "tol" = 1e-3,
+       "multi_output" = False,
+   }
+
 **K-Nearest Neighbors Regressor**
 
 .. code-block:: python
@@ -109,6 +202,43 @@ Regression
         "metric" = "minkowski",
         "metric_params" = None,
         "n_jobs" = None,
+   }
+
+**GaussianProcess Regressor**
+
+.. code-block:: python
+
+   "GP": {
+       "kernel" = None,
+       "alpha" = 1e-10,
+       "optimizer" = "fmin_l_bfgs_b",
+       "n_restarts_optimizer" = 0,
+       "normalize_y" = False,
+       "copy_X_train" = True,
+       "n_targets" = None,
+   }
+
+**Multi Output Regressor**
+
+.. code-block:: python
+
+   "MultiOutput": {
+       "estimators" = None,
+       "n_jobs" = None,
+   }
+
+**Stacking Regressor**
+
+.. code-block:: python
+
+   "Stacking": {
+       "estimators" = None,
+       "final_estimator" = RidgeRegression,
+       "cv": 5,
+       "n_jobs": 5,
+       "passthrough": False,
+       "verbose": 0,
+       "multi_output": False,
    }
 
 Classification
@@ -197,6 +327,68 @@ Classification
         "max_samples": None,
    }
 
+**ExtraTrees Classifier**
+
+.. code-block:: python
+
+   "ExtraTreesClassifier": {
+       "n_estimators" = 100,
+       "criterion" = "gini",
+       "max_depth" = None,
+       "min_samples_split" = 2,
+       "min_samples_leaf" = 1,
+       "min_weight_fraction_leaf" = 0.0,
+       "max_features" = 1.0,
+       "max_leaf_nodes" = None,
+       "min_impurity_decrease" = 0.0,
+       "bootstrap" = False,
+       "oob_score" = False,
+       "n_jobs" = None,
+       "verbose" = 0,
+       "warm_start" = False,
+       "ccp_alpha" = 0.0,
+       "max_samples" = None,
+       "class_weight" = None,
+   }
+
+**AdaBoost Classifer**
+
+.. code-block:: python
+
+   "AB": {
+       "estimator" = None,
+       "n_estimators" = 50,
+       "learning_rate" = 1.0,
+       "algorithm" = "SAMME.R",
+       "multi_output" = False,
+   }
+
+**GradientBoosting Classifier**
+
+.. code-block:: python
+
+   "GB": {
+       "loss" = "log_loss",
+       "learning_rate" = 0.1,
+       "n_estimators" = 100,
+       "subsample" = 1.0,
+       "criterion" = "friedman_mse",
+       "min_samples_split" = 2,
+       "min_samples_leaf" = 1,
+       "min_weight_fraction_leaf" = 0.0,
+       "max_depth" = 3,
+       "min_impurity_decrease" = 0.0,
+       "init" = None,
+       "max_features" = None,
+       "verbose" = 0,
+       "max_leaf_nodes" = None,
+       "warm_start" = False,
+       "validation_fraction" = 0.1,
+       "n_iter_no_change" = None,
+       "tol" = 1e-3,
+       "multi_output" = False,
+   }
+
 **K-Nearest Neighbors Classifier**
 
 .. code-block:: python
@@ -210,6 +402,45 @@ Classification
         "metric": "minkowski",
         "metric_params": None,
         "n_jobs": None,
+   }
+
+**GaussianProcess Classifier**
+
+.. code-block:: python
+
+   "GP": {
+       "kernel" = None,
+       "optimizer" = "fmin_l_bfgs_b",
+       "n_restarts_optimizer" = 0,
+       "copy_X_train" = True,
+       "random_state" = settings.values.random_state,
+       "max_iter_predict" = 100,
+       "warm_start" = False,
+       "multi_class" = "one_vs_rest",
+       "n_jobs" = None,
+   }
+
+**Multi Output Classifer**
+
+.. code-block:: python
+
+   "MultiOutput": {
+       "estimators" = None,
+       "n_jobs" = None,
+   }
+
+**Stacking Classifer**
+
+.. code-block:: python
+
+   "Stacking": {
+       "estimators" = None,
+       "final_estimator" = LogisticRegression,
+       "cv": 5,
+       "n_jobs": 5,
+       "passthrough": False,
+       "verbose": 0,
+       "multi_output": False,
    }
 
 .. _nn_templates:
