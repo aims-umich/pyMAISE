@@ -4,7 +4,7 @@
 [![Tests Status](https://github.com/myerspat/pyMAISE/actions/workflows/CI.yml/badge.svg)](https://github.com/myerspat/pyMAISE/actions/workflows)
 [![Documentation Status](https://readthedocs.org/projects/pymaise/badge/?version=latest)](https://pymaise.readthedocs.io/en/latest/?badge=latest)
 
-pyMAISE is an artificial intelligence (AI) and machine learning (ML) benchmarking library for nuclear reactor applications. It offers to streamline the building, tuning, and comparison of various ML models for user-provided data sets. Also, pyMAISE offers benchmarked data sets, written in Jupyter Notebooks, for AI/ML comparison. Current ML algorithm support includes
+pyMAISE is an artificial intelligence (AI) and machine learning (ML) benchmarking library for nuclear reactor applications. It offers to streamline the building, tuning, comparison, and explainability of various ML models for user-provided data sets. Also, pyMAISE offers benchmarked data sets, written in Jupyter Notebooks, for AI/ML comparison. Current ML algorithm support includes
 
 - linear regression,
 - lasso regression,
@@ -15,7 +15,7 @@ pyMAISE is an artificial intelligence (AI) and machine learning (ML) benchmarkin
 - k-nearest neighbors regression and classification,
 - sequential neural networks.
 
-These models are built using [scikit-learn](https://scikit-learn.org/stable/index.html) and [Keras](https://keras.io). pyMAISE supports the following neural network layers:
+These models are built using [scikit-learn](https://scikit-learn.org/stable/index.html) and [Keras](https://keras.io) with explainability using [SHAP](https://shap.readthedocs.io/en/latest/index.html). pyMAISE supports the following neural network layers:
 
 - dense,
 - dropout,
@@ -25,6 +25,26 @@ These models are built using [scikit-learn](https://scikit-learn.org/stable/inde
 - 1D, 2D, and 3D max pooling,
 - flatten,
 - and reshape.
+
+Please use the following to reference pyMAISE:
+```latex
+@article{MYERS2025105568,
+    title = {pyMAISE: A Python platform for automatic machine learning
+        and accelerated development for nuclear power applications},
+    journal = {Progress in Nuclear Energy},
+    volume = {180},
+    pages = {105568},
+    year = {2025},
+    issn = {0149-1970},
+    doi = {https://doi.org/10.1016/j.pnucene.2024.105568},
+    url = {
+        https://www.sciencedirect.com/science/article/pii/S0149197024005183
+    },
+    author = {Patrick A. Myers and Nataly Panczyk and Shashank Chidige
+        and Connor Craig and Jacob Cooper and Veda Joynt and Majdi
+        I. Radaideh},
+}
+```
 
 ## Installation and Documentation
 
