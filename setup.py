@@ -61,7 +61,7 @@ setup(
     author_email="myerspat@umich.edu",
     project_urls={
         "Documentation": "https://pymaise.readthedocs.io/en/latest/",
-        "Source Code": "https://github.com/myerspat/pyMAISE",
+        "Source Code": "https://github.com/aims-umich/pyMAISE",
     },
     license="Apache 2.0",
     classifiers=[

@@ -1,13 +1,14 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pyMAISE.explain import _explain as explain
-import matplotlib.pyplot as plt
+import pytest
 from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
-import pytest
+
+from pyMAISE.explain import _explain as explain
 
 
 @pytest.fixture

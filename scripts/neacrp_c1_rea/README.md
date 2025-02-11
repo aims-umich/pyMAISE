@@ -41,7 +41,7 @@ To construct the rod worth interpolation table, we pertubed the bank position fo
 
 The rod worth curve is shown in the figure below.
 
-![alt text](https://github.com/myerspat/pyMAISE/blob/develop/scripts/neacrp_c1_rea/rod_worth.png)
+![alt text](https://github.com/aims-umich/pyMAISE/blob/develop/scripts/neacrp_c1_rea/rod_worth.png)
 
 ## Running These Scripts
 
