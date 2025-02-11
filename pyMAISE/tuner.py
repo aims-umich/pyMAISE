@@ -35,6 +35,14 @@ from pyMAISE.methods import (
     NeuralNetsRegression,
     RandomForest,
     nnHyperModel,
+    GaussianProcess,
+    RidgeRegression,
+    GradientBoosting,
+    ElasticNet,
+    AdaBoost,
+    ExtraTrees,
+    MultiOutput,
+    Stacking,
 )
 from pyMAISE.utils import NNTuner, _try_clear
 
@@ -50,27 +58,55 @@ class Tuner:
     Supported models include
 
     - ``Linear``: linear `regressor <https://scikit-learn.org/stable/\
-      modules/generated/sklearn.linear_model.LinearRegression.html>`_,
-    - ``Lasso``: lasso `regressor <https://scikit-learn.org/stable/\
-      modules/generated/sklearn.linear_model.Lasso.html>`_,
-    - ``Logistic``: logistic `regressor <https://scikit-learn.org/\
-      stable/modules/generated/sklearn.linear_model.LogisticRegression.html>`_,
-    - ``SVM``: support vector `regressor <https://scikit-learn.org/\
-      stable/modules/generated/sklearn.svm.SVR.html#sklearn.svm.SVR>`_
-      and `classifier <https://scikit-learn.org/stable/modules/generated\
-      /sklearn.svm.SVC.html#sklearn.svm.SVC>`_,
+        modules/generated/sklearn.linear_model.LinearRegression.html>`_,
+    - ``Lasso``: lasso `regressor <https://scikit-learn.org/stable\
+        /modules/generated/sklearn.linear_model.Lasso.html>`_,
+    - ``Logistic``: logistic `regressor <https://scikit-learn.org/stable\
+        /modules/generated/sklearn.linear_model.LogisticRegression.html>`_,
+    - ``SVM``: support vector `regressor <https://scikit-learn.org/stable\
+        /modules/generated/sklearn.svm.SVR.html#sklearn.svm.SVR>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.svm.SVC.html#sklearn.svm.SVC>`_,
     - ``DT``: decision tree `regressor <https://scikit-learn.org/stable/\
-      modules/generated/sklearn.tree.DecisionTreeRegressor.html>`_
-      and `classifier <https://scikit-learn.org/stable/modules/generated/\
-      sklearn.tree.DecisionTreeClassifier.html>`_,
+        modules/generated/sklearn.tree.DecisionTreeRegressor.html>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.tree.DecisionTreeClassifier.html>`_,
     - ``RF``: random forest `regressor <https://scikit-learn.org/stable/\
-      modules/generated/sklearn.ensemble.RandomForestRegressor.html>`_
-      and `classifier <https://scikit-learn.org/stable/modules/generated/\
-      sklearn.ensemble.RandomForestClassifier.html>`_,
+        modules/generated/sklearn.ensemble.RandomForestRegressor.html>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.ensemble.RandomForestClassifier.html>`_,
     - ``KN``: k-nearest neighbors `regressor <https://scikit-learn.org/\
-      stable/modules/generated/sklearn.neighbors.KNeighborsRegressor.html>`_
-      and `classifier <https://scikit-learn.org/stable/modules/generated/\
-      sklearn.neighbors.KNeighborsClassifier.html>`_,
+        stable/modules/generated/sklearn.neighbors.KNeighborsRegressor.html>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.neighbors.KNeighborsClassifier.html>`_,
+    - ``EN``: elastic net `regressor <https://scikit-learn.org/stable/\
+        modules/generated/sklearn.linear_model.ElasticNet.html>`_,
+    - ``RD``: ridge `regressor <https://scikit-learn.org/stable/\
+        modules/generated/sklearn.linear_model.Ridge.html>`_,
+    - ``ET``: extra trees `regressor <https://scikit-learn.org/stable/\
+        modules/generated/sklearn.ensemble.ExtraTreesRegressor.html>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.ensemble.ExtraTreesClassifier.html>`_,
+    - ``AB``: AdaBoost `regressor <https://scikit-learn.org/stable/\
+        modules/generated/sklearn.ensemble.AdaBoostRegressor.html>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.ensemble.AdaBoostClassifier.html>`_,
+    - ``GP``: Gaussian process `regressor <https://scikit-learn.org/stable/\
+        modules/generated/sklearn.gaussian_process.GaussianProcessRegressor.html>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.gaussian_process.GaussianProcessClassifier.html>`_,
+    - ``GB``: gradient boosting `regressor <https://scikit-learn.org/stable/\
+        modules/generated/sklearn.ensemble.GradientBoostingRegressor.html>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.ensemble.GradientBoostingClassifier.html>`_,
+    - ``Stacking``: stacking `regressor <https://scikit-learn.org/stable/\
+        modules/generated/sklearn.ensemble.StackingRegressor.html>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.ensemble.StackingClassifier.html>`_,
+    - ``MultiOutput``: multioutput `regressor <https://scikit-learn.org/\
+        stable/modules/generated/sklearn.multioutput.MultiOutputRegressor.html>`_
+        and `classifier <https://scikit-learn.org/stable/modules/generated/\
+        sklearn.multioutput.MultiOutputClassifier.html>`_.
 
     from :cite:`scikit-learn` and `sequential neural networks \
     <https://keras.io/guides/sequential_model/>`_ from :cite:`chollet2015keras`.
@@ -289,6 +325,14 @@ class Tuner:
         "DT": DecisionTree,
         "RF": RandomForest,
         "KN": KNeighbors,
+        "GP": GaussianProcess,
+        "RD": RidgeRegression,
+        "GB": GradientBoosting,
+        "EN": ElasticNet,
+        "ET": ExtraTrees,
+        "AB": AdaBoost,
+        "MultiOutput": MultiOutput,
+        "Stacking": Stacking,
     }
 
     def __init__(self, xtrain, ytrain, model_settings):

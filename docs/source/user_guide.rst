@@ -155,6 +155,11 @@ To initialize :class:`pyMAISE.Tuner`, we define each model using a list of their
 
 This indicates that we change the ``"n_estimators"`` hyperparameter to 200, the rest are initialized as default.
 
+Some models (right now just Guassian Processing), which will only work when the data is standard scaled. If still selected when not standard scaled, an error will be thrown when postprocessing the data.
+
+Also, some models also have the ability to extend to multi-output without having to pass through the multi-output object in the models array. This is done by turning `multi-output = True` in model settings.
+Currently this is supported for gradient boosting, adaboost, and stacking. Please note that when this is done, pyMAISE is actually passing the model through a ``MultiOutput`` object. The same quirks about ``MultiOutput`` Hyperparameter Tuning (as discussed in the next section) still apply.
+
 For neural networks, we define both the hyperparameters that remain constant during tuning and those that change. The hyperparameters that change are set using :class:`pyMAISE.Int`, :class:`pyMAISE.Float`, :class:`pyMAISE.Choice`, :class:`pyMAISE.Boolean`, and :class:`pyMAISE.Fixed`. These hyperparameters are set within the ``"structural_params"``, ``"optimizer"``, ``"compile_params"``, and ``"fitting_params"`` keys within the models subdictionary. For each neural network layer, we can also define the ``"sublayer"``, ``"wrapper"``, and ``"num_layers"`` hyperparameters. For example, here is a dense feedforward neural network:
 
 .. code-block:: python
@@ -236,6 +241,32 @@ This dictionary is then passed to the grid search tuning function:
    )
 
 Which will run the grid search. Notice that a ``Linear`` search space was not defined; in this case, the model's parameters are returned for postprocessing, and no tuning takes place.
+
+With the new pyMAISE version, we have added stacking and multi-output, which both add a layer of complexity to getting to model parameters.
+When using stacking models, hyperparameters are accessed through the format ``{name}__{property}``, where {name} is the identifier for each base estimator in the stack, and {property} is the specific hyperparameter. For example, if you want to set the alpha parameter for a elastic net estimator in a stacking model, you would use ``EN__alpha``.
+For multi-output tasks with a single model, you can access properties directly using the format ``estimator__{property}``, as there is only one main estimator for all outputs. This allows for a simplified tuning structure in multi-output models, where specifying parameters does not require naming individual base estimators.
+Please note that if multi-output is turned on for models when setting model parameters, the same wrapping is applied and you will need to access model parameters through ``estimator__{property}``.
+
+**Example**
+
+If tuning a stacking model, parameters might be set as:
+
+.. code-block:: python
+
+   stacking_search_spaces = {
+      "Lasso__alpha": np.linspace(0.0001, 5, 20),
+      "RF__max_depth": [5, 10, 15],
+   }
+
+For a multi-output estimator (this example has a wrapped elsatic net estimator):
+
+.. code-block:: python
+
+   multi_output_search_space = {
+      "estimator__max_depth": np.linspace(0.0001, 5, 20),
+   }
+
+As previously stated, stacking has the option to extend to multi-output without explicitly making a multi-output model. This will require double nesting to get to model parameters as ``estimator__{name}__{property}``. This is so we can access the Stacking object (and it's models) underneath the multi-output wrapper.
 
 Random Search with Classical Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -321,6 +352,7 @@ With our top :attr:`pyMAISE.Settings.num_configs_saved` models we can pass these
    )
 
 Additionally, we can pass a dictionary similar to ``model_settings`` of updated model settings to the ``new_model_settings`` parameter such as an increase in epochs for the final neural network models. With our :class:`pyMAISE.PostProcessor` initialized we can begin evaluating our models.
+Please note that if Gaussian Processing was selected and standard scaling was not applied, an error will be thrown in this step.
 
 Performance Metrics
 ^^^^^^^^^^^^^^^^^^^
