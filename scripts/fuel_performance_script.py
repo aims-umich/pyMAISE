@@ -38,11 +38,11 @@ np.random.seed(random_state)
 # =======================================================================================
 # Read data
 X = pd.read_csv(
-    "https://raw.githubusercontent.com/myerspat/pyMAISE/develop/pyMAISE/data/fp_inp.csv"
+    "https://raw.githubusercontent.com/aims-umich/pyMAISE/develop/pyMAISE/data/fp_inp.csv"
 )
 print(X)
 Y = pd.read_csv(
-    "https://raw.githubusercontent.com/myerspat/pyMAISE/develop/pyMAISE/data/fp_out.csv"
+    "https://raw.githubusercontent.com/aims-umich/pyMAISE/develop/pyMAISE/data/fp_out.csv"
 )
 print(Y)
 

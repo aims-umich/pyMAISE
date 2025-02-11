@@ -1,0 +1,19 @@
+name: maise-env
+channels:
+  - default
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - xarray
+  - scikit-learn
+  - scikit-optimize
+  - keras
+  - keras-tuner
+  - tensorflow=2.12.0
+  - matplotlib
+  - tqdm
+  - pydot
+  - graphviz
+  - ipykernel
