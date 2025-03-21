@@ -16,6 +16,13 @@ pyMAISE is an artificial intelligence (AI) and machine learning (ML) benchmarkin
 - k-nearest neighbors regression and classification,
 - sequential neural networks.
 
+Additionally, pyMAISE supports basic explainability analysis via SHAP for all the ML algorithms listed above. Current SHAP support includes
+
+- DeepLIFT,
+- Integrated Gradients,
+- Kernel SHAP,
+- and Exact SHAP.
+
 These models are built using [scikit-learn](https://scikit-learn.org/stable/index.html) and [Keras](https://keras.io) with explainability using [SHAP](https://shap.readthedocs.io/en/latest/index.html). pyMAISE supports the following neural network layers:
 
 - dense,
