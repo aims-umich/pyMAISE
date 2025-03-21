@@ -37,6 +37,29 @@ def plot_bar_with_labels(df, fig=None, ax=None):
 
 
 class ShapExplainers:
+    """Explainers class based on SHAP.
+    Allows for model-specific explainability features for
+    a variety of SHAP methods, including DeepLIFT, KernelSHAP,
+    and Integrated Gradients. Also features plotting capabilities
+    for beeswarm and bar plots after SHAP value
+    calculations for any method.
+
+    Parameters
+    ----------
+    base_model: model object.
+        Must contain an associated .predict() method.
+    X: np.array.
+        Array of feature values used for generating SHAP values.
+    feature_names: list, default=None.
+        Ordered list of feature names corresponding to the columns
+        in X for plotting.
+    output_names: list, default=None.
+        Ordered list of output names corresponding to those used
+        to train base_model object for plotting.
+    seed: int, default=None.
+        Seed for reproducibility.
+    """
+
     def __init__(
         self,
         base_model,
