@@ -43,6 +43,7 @@ These models are built using `scikit-learn <https://scikit-learn.org/stable/inde
 - 1D, 2D, and 3D max pooling,
 - flatten,
 - and reshape.
+Request further neural network layer support as an issue on the `pyMAISE repository <https://github.com/myerspat/pyMAISE>`_.
 
 Additionally, pyMAISE supports basic explainability analysis via SHAP for all the ML algorithms listed above. Current SHAP support includes
 
