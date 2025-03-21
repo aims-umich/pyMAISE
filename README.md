@@ -16,7 +16,7 @@ pyMAISE is an artificial intelligence (AI) and machine learning (ML) benchmarkin
 - k-nearest neighbors regression and classification,
 - sequential neural networks.
 
-Additionally, pyMAISE supports basic explainability analysis via SHAP for all the ML algorithms listed above. Current SHAP support includes
+Additionally, pyMAISE supports basic explainability analysis via SHAP for all the ML algorithms listed above. An example is provided in the CHF benchmark. Current SHAP support includes
 
 - DeepLIFT,
 - Integrated Gradients,
