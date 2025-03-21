@@ -51,6 +51,8 @@ Additionally, pyMAISE supports basic explainability analysis via SHAP for all th
 - Kernel SHAP,
 - and Exact SHAP.
 
+An example showing how to implement these features is available via the CHF benchmark.
+
 Request further neural network layer support as an issue on the `pyMAISE repository <https://github.com/myerspat/pyMAISE>`_. Refer to the sections below for more information, including installation, examples, and use. Use the :ref:`examples` as examples on pyMAISE functionality.
 
 .. admonition:: Recommended publication for citing :cite:`MYERS2025105568`,
