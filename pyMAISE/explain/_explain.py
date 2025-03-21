@@ -73,14 +73,14 @@ class ShapExplainers:
 
     def DeepLIFT(self, nsamples=None):
         """
-        This functin fits a DeepLIFT explainer to evaluate SHAP coeffiicents (only for
+        This function fits a DeepLIFT explainer to evaluate SHAP coeffiicents (only for
         neural networks).
 
         Parameters
         ----------
-        nsamples: int less than total samples in test set or None, default=None
+        nsamples: int less than total samples in test set or None, default=None.
             Number of samples used to estimate the DeepLIFT importances if it is
-            different than using all samples in X
+            different than using all samples in X.
         """
         if nsamples is not None:
             test_indices = np.random.choice(
@@ -103,9 +103,9 @@ class ShapExplainers:
 
         Parameters
         ----------
-        nsamples: int less than total samples in test set or None, default=None
+        nsamples: int less than total samples in test set or None, default=None.
             Number of test samples used to estimate the IG importances if it is
-            different than using all samples in X
+            different than using all samples in X.
         """
         if nsamples is not None:
             test_indices = np.random.choice(
@@ -127,11 +127,11 @@ class ShapExplainers:
 
         Parameters
         ----------
-        n_background_samples: int less than total samples in X, default=500
-            Number of training samples used as background for integrating out features
-        n_test_samples: int less than total samples in X, default=200
+        n_background_samples: int less than total samples in X, default=500.
+            Number of training samples used as background for integrating out features.
+        n_test_samples: int less than total samples in X, default=200.
             Number of
-            test samples used to estimate the Kernel SHAP importances
+            test samples used to estimate the Kernel SHAP importances.
         n_bootstrap: int, default=200
             Number of times to re-evaluate the model
             when explaining each prediction. More samples lead to lower variance
