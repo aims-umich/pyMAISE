@@ -16,7 +16,7 @@ from pyMAISE.settings import ProblemType, init
 from pyMAISE.tuner import Tuner
 from pyMAISE.utils import Boolean, Choice, Fixed, Float, Int, _try_clear
 from pyMAISE.explain import _explain as explain
-from explain import ShapExplainers
+from pyMAISE.explain import ShapExplainers
 
 _try_clear()
 
