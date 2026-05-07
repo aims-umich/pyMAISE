@@ -190,7 +190,7 @@ in-depth evaluation.
 Explainability
 ---------------
 
-To generate explainability metrics for a model created by pyMAISE, you can use the :class:`pyMAISE.ShapExplainers` to create an explainer object based on a particular SHAP method. Current capabilities include DeepLIFT, KernelSHAP, Exact SHAP, and Integrated Gradients.
+To generate explainability metrics for a model created by pyMAISE, you can use the :class:`pyMAISE.explain.ShapExplainers` to create an explainer object based on a particular SHAP method. Current capabilities include DeepLIFT, KernelSHAP, Exact SHAP, and Integrated Gradients.
 
 .. rubric:: Classes
 
@@ -199,4 +199,4 @@ To generate explainability metrics for a model created by pyMAISE, you can use t
    :nosignatures:
    :template: class.rst
 
-   pyMAISE.ShapExplainers
+   pyMAISE.explain.ShapExplainers

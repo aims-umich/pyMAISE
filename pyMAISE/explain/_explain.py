@@ -22,7 +22,7 @@ def plot_bar_with_labels(df, fig=None, ax=None):
         of shap values for each feature in a model.
     Returns
     -------
-    ax: matplotlib.pyplot.axis
+    ax: matplotlib.pyplot.Axes
         The plot.
     """
     if fig is None or ax is None:
