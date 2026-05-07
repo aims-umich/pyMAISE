@@ -19,7 +19,6 @@ import_errors: dict[str, tuple[str, Exception]] = {}
 
 
 def assert_import(package_name: str) -> None:
-    global import_errors
     if package_name in import_errors:
         msg, e = import_errors[package_name]
         print(msg)
@@ -27,7 +26,6 @@ def assert_import(package_name: str) -> None:
 
 
 def record_import_error(package_name: str, msg: str, e: ImportError) -> None:
-    global import_errors
     import_errors[package_name] = (msg, e)
 
 
@@ -65,7 +63,9 @@ def potential_interactions(shap_values_column, shap_values_matrix):
     index values for SHAP see the interaction_contribs option implemented in XGBoost.
     """
     # ignore inds that are identical to the column
-    ignore_inds = np.where((shap_values_matrix.values.T - shap_values_column.values).T.std(0) < 1e-8)
+    ignore_inds = np.where(
+        (shap_values_matrix.values.T - shap_values_column.values).T.std(0) < 1e-8
+    )
 
     X = shap_values_matrix.data
 
@@ -89,16 +89,26 @@ def potential_interactions(shap_values_column, shap_values_matrix):
         v = 0.0
         if not (i in ignore_inds or np.sum(np.abs(val_other)) < 1e-8):
             for j in range(0, len(x), inc):
-                if np.std(val_other[j : j + inc]) > 0 and np.std(shap_ref[j : j + inc]) > 0:
-                    v += abs(np.corrcoef(shap_ref[j : j + inc], val_other[j : j + inc])[0, 1])
+                if (
+                    np.std(val_other[j : j + inc]) > 0
+                    and np.std(shap_ref[j : j + inc]) > 0
+                ):
+                    v += abs(
+                        np.corrcoef(shap_ref[j : j + inc], val_other[j : j + inc])[0, 1]
+                    )
         val_v = v
 
         val_other = np.isnan(encoded_val_other)
         v = 0.0
         if not (i in ignore_inds or np.sum(np.abs(val_other)) < 1e-8):
             for j in range(0, len(x), inc):
-                if np.std(val_other[j : j + inc]) > 0 and np.std(shap_ref[j : j + inc]) > 0:
-                    v += abs(np.corrcoef(shap_ref[j : j + inc], val_other[j : j + inc])[0, 1])
+                if (
+                    np.std(val_other[j : j + inc]) > 0
+                    and np.std(shap_ref[j : j + inc]) > 0
+                ):
+                    v += abs(
+                        np.corrcoef(shap_ref[j : j + inc], val_other[j : j + inc])[0, 1]
+                    )
         nan_v = v
 
         interactions.append(max(val_v, nan_v))
@@ -140,16 +150,26 @@ def approximate_interactions(index, shap_values, X, feature_names=None):
         v = 0.0
         if not (i == index or np.sum(np.abs(val_other)) < 1e-8):
             for j in range(0, len(x), inc):
-                if np.std(val_other[j : j + inc]) > 0 and np.std(shap_ref[j : j + inc]) > 0:
-                    v += abs(np.corrcoef(shap_ref[j : j + inc], val_other[j : j + inc])[0, 1])
+                if (
+                    np.std(val_other[j : j + inc]) > 0
+                    and np.std(shap_ref[j : j + inc]) > 0
+                ):
+                    v += abs(
+                        np.corrcoef(shap_ref[j : j + inc], val_other[j : j + inc])[0, 1]
+                    )
         val_v = v
 
         val_other = np.isnan(encoded_val_other)
         v = 0.0
         if not (i == index or np.sum(np.abs(val_other)) < 1e-8):
             for j in range(0, len(x), inc):
-                if np.std(val_other[j : j + inc]) > 0 and np.std(shap_ref[j : j + inc]) > 0:
-                    v += abs(np.corrcoef(shap_ref[j : j + inc], val_other[j : j + inc])[0, 1])
+                if (
+                    np.std(val_other[j : j + inc]) > 0
+                    and np.std(shap_ref[j : j + inc]) > 0
+                ):
+                    v += abs(
+                        np.corrcoef(shap_ref[j : j + inc], val_other[j : j + inc])[0, 1]
+                    )
         nan_v = v
 
         interactions.append(max(val_v, nan_v))
@@ -274,7 +294,9 @@ def format_value(s, format_str):
 # From: https://groups.google.com/forum/m/#!topic/openrefine/G7_PSdUeno0
 def ordinal_str(n):
     """Converts a number to and ordinal string."""
-    return str(n) + {1: "st", 2: "nd", 3: "rd"}.get(4 if 10 <= n % 100 < 20 else n % 10, "th")
+    return str(n) + {1: "st", 2: "nd", 3: "rd"}.get(
+        4 if 10 <= n % 100 < 20 else n % 10, "th"
+    )
 
 
 class OpChain:
@@ -328,7 +350,14 @@ class OpChain:
             has_args = len(args) > 0
             has_kwargs = len(kwargs) > 0
             if has_args or has_kwargs:
-                out += "(" + ", ".join([repr(v) for v in args] + [f"{k}={v!r}" for k, v in kwargs.items()]) + ")"
+                out += (
+                    "("
+                    + ", ".join(
+                        [repr(v) for v in args]
+                        + [f"{k}={v!r}" for k, v in kwargs.items()]
+                    )
+                    + ")"
+                )
         return out
 
 

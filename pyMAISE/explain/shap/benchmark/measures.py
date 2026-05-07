@@ -9,7 +9,16 @@ _remove_cache = {}
 
 
 def remove_retrain(
-    nmask, X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model, random_state
+    nmask,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_test,
+    model_generator,
+    metric,
+    trained_model,
+    random_state,
 ):
     """The model is retrained for each test sample with the important features set to a constant.
 
@@ -22,14 +31,17 @@ def remove_retrain(
     to get the change in model performance when a specified fraction of the most important features
     are withheld.
     """
-    warnings.warn("The retrain based measures can incorrectly evaluate models in some cases!")
+    warnings.warn(
+        "The retrain based measures can incorrectly evaluate models in some cases!"
+    )
 
     # see if we match the last cached call
-    global _remove_cache
     args = (X_train, y_train, X_test, y_test, model_generator, metric)
     cache_match = False
     if "args" in _remove_cache:
-        if all(a is b for a, b in zip(_remove_cache["args"], args)) and np.all(_remove_cache["attr_test"] == attr_test):
+        if all(a is b for a, b in zip(_remove_cache["args"], args)) and np.all(
+            _remove_cache["attr_test"] == attr_test
+        ):
             cache_match = True
 
     X_train, X_test = to_array(X_train, X_test)
@@ -57,8 +69,12 @@ def remove_retrain(
             X_train_tmp[:] = X_train
             X_test_tmp[:] = X_test
             ordering = np.argsort(-attr_test[i, :] + tie_breaking_noise)
-            X_train_tmp[:, ordering[: nmask[i]]] = X_train[:, ordering[: nmask[i]]].mean()
-            X_test_tmp[i, ordering[: nmask[i]]] = X_train[:, ordering[: nmask[i]]].mean()
+            X_train_tmp[:, ordering[: nmask[i]]] = X_train[
+                :, ordering[: nmask[i]]
+            ].mean()
+            X_test_tmp[i, ordering[: nmask[i]]] = X_train[
+                :, ordering[: nmask[i]]
+            ].mean()
 
             # retrain the model and make a prediction
             model_masked.fit(X_train_tmp, y_train)
@@ -74,7 +90,16 @@ def remove_retrain(
 
 
 def remove_mask(
-    nmask, X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model, random_state
+    nmask,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_test,
+    model_generator,
+    metric,
+    trained_model,
+    random_state,
 ):
     """Each test sample is masked by setting the important features to a constant."""
     X_train, X_test = to_array(X_train, X_test)
@@ -97,7 +122,16 @@ def remove_mask(
 
 
 def remove_impute(
-    nmask, X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model, random_state
+    nmask,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_test,
+    model_generator,
+    metric,
+    trained_model,
+    random_state,
 ):
     """The model is reevaluated for each test sample with the important features set to an imputed value.
 
@@ -126,7 +160,9 @@ def remove_impute(
             # impute missing data assuming it follows a multivariate normal distribution
             Coo_inv = np.linalg.inv(C[observe_inds, :][:, observe_inds])
             Cio = C[impute_inds, :][:, observe_inds]
-            impute = mean_vals[impute_inds] + Cio @ Coo_inv @ (X_test[i, observe_inds] - mean_vals[observe_inds])
+            impute = mean_vals[impute_inds] + Cio @ Coo_inv @ (
+                X_test[i, observe_inds] - mean_vals[observe_inds]
+            )
 
             X_test_tmp[i, impute_inds] = impute
 
@@ -136,7 +172,16 @@ def remove_impute(
 
 
 def remove_resample(
-    nmask, X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model, random_state
+    nmask,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_test,
+    model_generator,
+    metric,
+    trained_model,
+    random_state,
 ):
     """The model is reevaluated for each test sample with the important features set to resample background values."""
     X_train, X_test = to_array(X_train, X_test)
@@ -151,22 +196,35 @@ def remove_resample(
     N, M = X_test.shape
     X_test_tmp = np.tile(X_test, [1, nsamples]).reshape(nsamples * N, M)
     tie_breaking_noise = const_rand(M) * 1e-6
-    inds = sklearn.utils.resample(np.arange(N), n_samples=nsamples, random_state=random_state)
+    inds = sklearn.utils.resample(
+        np.arange(N), n_samples=nsamples, random_state=random_state
+    )
     for i in range(N):
         if nmask[i] > 0:
             ordering = np.argsort(-attr_test[i, :] + tie_breaking_noise)
-            X_test_tmp[i * nsamples : (i + 1) * nsamples, ordering[: nmask[i]]] = X_train[inds, :][
-                :, ordering[: nmask[i]]
-            ]
+            X_test_tmp[i * nsamples : (i + 1) * nsamples, ordering[: nmask[i]]] = (
+                X_train[inds, :][:, ordering[: nmask[i]]]
+            )
 
     yp_masked_test = trained_model.predict(X_test_tmp)
-    yp_masked_test = np.reshape(yp_masked_test, (N, nsamples)).mean(1)  # take the mean output over all samples
+    yp_masked_test = np.reshape(yp_masked_test, (N, nsamples)).mean(
+        1
+    )  # take the mean output over all samples
 
     return metric(y_test, yp_masked_test)
 
 
 def batch_remove_retrain(
-    nmask_train, nmask_test, X_train, y_train, X_test, y_test, attr_train, attr_test, model_generator, metric
+    nmask_train,
+    nmask_test,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_train,
+    attr_test,
+    model_generator,
+    metric,
 ):
     """An approximation of holdout that only retraines the model once.
 
@@ -175,7 +233,9 @@ def batch_remove_retrain(
     and then retrains the model once, instead of retraining the model for every test sample like
     the holdout metric.
     """
-    warnings.warn("The retrain based measures can incorrectly evaluate models in some cases!")
+    warnings.warn(
+        "The retrain based measures can incorrectly evaluate models in some cases!"
+    )
 
     X_train, X_test = to_array(X_train, X_test)
 
@@ -189,12 +249,16 @@ def batch_remove_retrain(
     for i in range(len(y_train)):
         if nmask_train[i] > 0:
             ordering = np.argsort(-attr_train[i, :] + tie_breaking_noise)
-            X_train_tmp[i, ordering[: nmask_train[i]]] = X_train_mean[ordering[: nmask_train[i]]]
+            X_train_tmp[i, ordering[: nmask_train[i]]] = X_train_mean[
+                ordering[: nmask_train[i]]
+            ]
     X_test_tmp = X_test.copy()
     for i in range(len(y_test)):
         if nmask_test[i] > 0:
             ordering = np.argsort(-attr_test[i, :] + tie_breaking_noise)
-            X_test_tmp[i, ordering[: nmask_test[i]]] = X_train_mean[ordering[: nmask_test[i]]]
+            X_test_tmp[i, ordering[: nmask_test[i]]] = X_train_mean[
+                ordering[: nmask_test[i]]
+            ]
 
     # train the model with all the given features masked
     model_masked = model_generator()
@@ -208,7 +272,16 @@ _keep_cache = {}
 
 
 def keep_retrain(
-    nkeep, X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model, random_state
+    nkeep,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_test,
+    model_generator,
+    metric,
+    trained_model,
+    random_state,
 ):
     """The model is retrained for each test sample with the non-important features set to a constant.
 
@@ -221,14 +294,17 @@ def keep_retrain(
     to get the change in model performance when a specified fraction of the most important features
     are retained.
     """
-    warnings.warn("The retrain based measures can incorrectly evaluate models in some cases!")
+    warnings.warn(
+        "The retrain based measures can incorrectly evaluate models in some cases!"
+    )
 
     # see if we match the last cached call
-    global _keep_cache
     args = (X_train, y_train, X_test, y_test, model_generator, metric)
     cache_match = False
     if "args" in _keep_cache:
-        if all(a is b for a, b in zip(_keep_cache["args"], args)) and np.all(_keep_cache["attr_test"] == attr_test):
+        if all(a is b for a, b in zip(_keep_cache["args"], args)) and np.all(
+            _keep_cache["attr_test"] == attr_test
+        ):
             cache_match = True
 
     X_train, X_test = to_array(X_train, X_test)
@@ -256,8 +332,12 @@ def keep_retrain(
             X_train_tmp[:] = X_train
             X_test_tmp[:] = X_test
             ordering = np.argsort(-attr_test[i, :] + tie_breaking_noise)
-            X_train_tmp[:, ordering[nkeep[i] :]] = X_train[:, ordering[nkeep[i] :]].mean()
-            X_test_tmp[i, ordering[nkeep[i] :]] = X_train[:, ordering[nkeep[i] :]].mean()
+            X_train_tmp[:, ordering[nkeep[i] :]] = X_train[
+                :, ordering[nkeep[i] :]
+            ].mean()
+            X_test_tmp[i, ordering[nkeep[i] :]] = X_train[
+                :, ordering[nkeep[i] :]
+            ].mean()
 
             # retrain the model and make a prediction
             model_masked.fit(X_train_tmp, y_train)
@@ -272,7 +352,18 @@ def keep_retrain(
     return metric(y_test, yp_masked_test)
 
 
-def keep_mask(nkeep, X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model, random_state):
+def keep_mask(
+    nkeep,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_test,
+    model_generator,
+    metric,
+    trained_model,
+    random_state,
+):
     """The model is reevaluated for each test sample with the non-important features set to their mean."""
     X_train, X_test = to_array(X_train, X_test)
 
@@ -295,7 +386,16 @@ def keep_mask(nkeep, X_train, y_train, X_test, y_test, attr_test, model_generato
 
 
 def keep_impute(
-    nkeep, X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model, random_state
+    nkeep,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_test,
+    model_generator,
+    metric,
+    trained_model,
+    random_state,
 ):
     """The model is reevaluated for each test sample with the non-important features set to an imputed value.
 
@@ -324,7 +424,9 @@ def keep_impute(
             # impute missing data assuming it follows a multivariate normal distribution
             Coo_inv = np.linalg.inv(C[observe_inds, :][:, observe_inds])
             Cio = C[impute_inds, :][:, observe_inds]
-            impute = mean_vals[impute_inds] + Cio @ Coo_inv @ (X_test[i, observe_inds] - mean_vals[observe_inds])
+            impute = mean_vals[impute_inds] + Cio @ Coo_inv @ (
+                X_test[i, observe_inds] - mean_vals[observe_inds]
+            )
 
             X_test_tmp[i, impute_inds] = impute
 
@@ -334,7 +436,16 @@ def keep_impute(
 
 
 def keep_resample(
-    nkeep, X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model, random_state
+    nkeep,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_test,
+    model_generator,
+    metric,
+    trained_model,
+    random_state,
 ):
     """The model is reevaluated for each test sample with the non-important features set to resample background values."""  # why broken? overwriting?
     X_train, X_test = to_array(X_train, X_test)
@@ -349,22 +460,35 @@ def keep_resample(
     N, M = X_test.shape
     X_test_tmp = np.tile(X_test, [1, nsamples]).reshape(nsamples * N, M)
     tie_breaking_noise = const_rand(M) * 1e-6
-    inds = sklearn.utils.resample(np.arange(N), n_samples=nsamples, random_state=random_state)
+    inds = sklearn.utils.resample(
+        np.arange(N), n_samples=nsamples, random_state=random_state
+    )
     for i in range(N):
         if nkeep[i] < M:
             ordering = np.argsort(-attr_test[i, :] + tie_breaking_noise)
-            X_test_tmp[i * nsamples : (i + 1) * nsamples, ordering[nkeep[i] :]] = X_train[inds, :][
-                :, ordering[nkeep[i] :]
-            ]
+            X_test_tmp[i * nsamples : (i + 1) * nsamples, ordering[nkeep[i] :]] = (
+                X_train[inds, :][:, ordering[nkeep[i] :]]
+            )
 
     yp_masked_test = trained_model.predict(X_test_tmp)
-    yp_masked_test = np.reshape(yp_masked_test, (N, nsamples)).mean(1)  # take the mean output over all samples
+    yp_masked_test = np.reshape(yp_masked_test, (N, nsamples)).mean(
+        1
+    )  # take the mean output over all samples
 
     return metric(y_test, yp_masked_test)
 
 
 def batch_keep_retrain(
-    nkeep_train, nkeep_test, X_train, y_train, X_test, y_test, attr_train, attr_test, model_generator, metric
+    nkeep_train,
+    nkeep_test,
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    attr_train,
+    attr_test,
+    model_generator,
+    metric,
 ):
     """An approximation of keep that only retraines the model once.
 
@@ -373,7 +497,9 @@ def batch_keep_retrain(
     and then retrains the model once, instead of retraining the model for every test sample like
     the keep metric.
     """
-    warnings.warn("The retrain based measures can incorrectly evaluate models in some cases!")
+    warnings.warn(
+        "The retrain based measures can incorrectly evaluate models in some cases!"
+    )
 
     X_train, X_test = to_array(X_train, X_test)
 
@@ -387,12 +513,16 @@ def batch_keep_retrain(
     for i in range(len(y_train)):
         if nkeep_train[i] < X_train.shape[1]:
             ordering = np.argsort(-attr_train[i, :] + tie_breaking_noise)
-            X_train_tmp[i, ordering[nkeep_train[i] :]] = X_train_mean[ordering[nkeep_train[i] :]]
+            X_train_tmp[i, ordering[nkeep_train[i] :]] = X_train_mean[
+                ordering[nkeep_train[i] :]
+            ]
     X_test_tmp = X_test.copy()
     for i in range(len(y_test)):
         if nkeep_test[i] < X_test.shape[1]:
             ordering = np.argsort(-attr_test[i, :] + tie_breaking_noise)
-            X_test_tmp[i, ordering[nkeep_test[i] :]] = X_train_mean[ordering[nkeep_test[i] :]]
+            X_test_tmp[i, ordering[nkeep_test[i] :]] = X_train_mean[
+                ordering[nkeep_test[i] :]
+            ]
 
     # train the model with all the features not given masked
     model_masked = model_generator()
@@ -402,7 +532,9 @@ def batch_keep_retrain(
     return metric(y_test, yp_test_masked)
 
 
-def local_accuracy(X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model):
+def local_accuracy(
+    X_train, y_train, X_test, y_test, attr_test, model_generator, metric, trained_model
+):
     """The how well do the features plus a constant base rate sum up to the model output."""
     X_train, X_test = to_array(X_train, X_test)
 
