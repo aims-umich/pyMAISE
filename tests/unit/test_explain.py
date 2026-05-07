@@ -98,7 +98,7 @@ def deeplift_explain_object(explain_object):
     return explain_object
 
 
-@pytest.mark.xfail(reason=AttributeError)
+@pytest.mark.xfail(raises=AttributeError)
 def test_explain_plot_without_postprocess_call(deeplift_explain_object):
     deeplift_explain_object.plot(save_figs=False)
 
@@ -117,6 +117,6 @@ def test_explain_plot(deeplift_explain_object):
     plt.close("all")
 
 
-@pytest.mark.xfail(reason=NameError)
+@pytest.mark.xfail(raises=NameError)
 def test_explain_plot_output_name_error(deeplift_explain_object):
     deeplift_explain_object.plot(output_name="Fake Output Name")

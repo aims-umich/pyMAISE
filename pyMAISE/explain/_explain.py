@@ -74,6 +74,8 @@ class ShapExplainers:
         self.X = X
         self.shap_raw = {}
         self.shap_samples = {}
+        self.shap_mean = None
+        self.shap_net_effect = None
         self.feature_names = feature_names
         self.output_names = output_names
         if seed:
