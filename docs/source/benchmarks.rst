@@ -33,7 +33,7 @@ Creating Your Benchmark
 
 pyMAISE aims to be a medium for AI/ML researchers to benchmark their data sets and models with standard ML methods; subsequently, we encourage you to contribute if you are interested. Here, we outline the procedure for creating a pyMAISE benchmark. Please read the :ref:`dev_guide` before continuing.
 
-1. On the pyMAISE GitHub, open a `Benchmark Request <https://github.com/myerspat/pyMAISE/issues/new?assignees=&labels=&projects=&template=benchmark-request.md&title=>`_ under Issues. Please describe the data set you plan to use in the benchmark and link any relevant resources, such as a link to the published paper (if there is one).
+1. On the pyMAISE GitHub, open a `Benchmark Request <https://github.com/aims-umich/pyMAISE/issues/new?assignees=&labels=&projects=&template=benchmark-request.md&title=>`_ under Issues. Please describe the data set you plan to use in the benchmark and link any relevant resources, such as a link to the published paper (if there is one).
 2. Perform the following:
     1. Add the data to ``pyMAISE/datasets/``.
     2. Add a load function to ``pyMAISE/datasets/_handler.py`` and include a description of the data. This load function should return ``xarray.DataArray``.
@@ -43,6 +43,6 @@ pyMAISE aims to be a medium for AI/ML researchers to benchmark their data sets a
     6. Add the load function to the ``toctree`` in ``docs/source/pymaise_api.rst`` under :ref:`Data Sets <datasets_api>`.
     7. Add the nbviwer link to ``README.md``. Ensure this link is for the develop branch.
     8. If a published paper exists for the data set, add the BibTeX citation to ``docs/source/data_refs.bib``.
-3. Once these steps are completed, you can push the benchmark, ensuring to adhere to the workflow outlined in the :ref:`dev_guide`, and create a `pull request <https://github.com/myerspat/pyMAISE/pulls>`_.
+3. Once these steps are completed, you can push the benchmark, ensuring to adhere to the workflow outlined in the :ref:`dev_guide`, and create a `pull request <https://github.com/aims-umich/pyMAISE/pulls>`_.
 
 A reviewer will ensure the validity of the benchmark and data. They will offer feedback and possible revisions for you. Thank you for contributing!

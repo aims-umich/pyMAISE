@@ -28,6 +28,9 @@ pyMAISE will also install all needed dependencies.
    -  `tqdm <https://tqdm.github.io/>`_
    -  `pydot <https://github.com/pydot/pydot>`_
    -  `graphviz <https://graphviz.org/>`_
+   -  `slicer <https://slicer.readthedocs.io/>`_
+   -  `cloudpickle <https://github.com/cloudpipe/cloudpickle>`_
+   -  `numba <https://numba.pydata.org/>`_
 
 .. admonition:: Optional
    :class: note
@@ -71,13 +74,13 @@ by running:
 
 .. code:: sh
 
-   pip install git+https://github.com/myerspat/pyMAISE.git
+   pip install git+https://github.com/aims-umich/pyMAISE.git
 
 Alternatively, you can clone the repository using ``git``:
 
 .. code:: sh
 
-   git clone https://github.com/myerspat/pyMAISE.git
+   git clone https://github.com/aims-umich/pyMAISE.git
    cd pyMAISE/
 
 For a specific version, then checkout the branch:

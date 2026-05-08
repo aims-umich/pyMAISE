@@ -15,6 +15,8 @@ from pyMAISE.postprocessor import PostProcessor
 from pyMAISE.settings import ProblemType, init
 from pyMAISE.tuner import Tuner
 from pyMAISE.utils import Boolean, Choice, Fixed, Float, Int, _try_clear
+from pyMAISE.explain import _explain as explain
+from pyMAISE.explain._explain import ShapExplainers
 
 _try_clear()
 

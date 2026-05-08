@@ -30,6 +30,9 @@ setup(
         "tqdm",
         "pydot",
         "graphviz",
+        "slicer==0.0.8",
+        "numba==0.60.0",
+        "cloudpickle==3.0.0",
     ],
     extras_require={
         "dev": [
@@ -58,7 +61,7 @@ setup(
     author_email="myerspat@umich.edu",
     project_urls={
         "Documentation": "https://pymaise.readthedocs.io/en/latest/",
-        "Source Code": "https://github.com/myerspat/pyMAISE",
+        "Source Code": "https://github.com/aims-umich/pyMAISE",
     },
     license="Apache 2.0",
     classifiers=[

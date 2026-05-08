@@ -153,7 +153,7 @@ class Tuner:
     - ``Ftrl``: `FTRL <https://keras.io/api/optimizers/ftrl/>`_.
 
     .. note:: For additional layer or optimizer support, submit a detailed issue at the
-        `pyMAISE GitHub repository <https://github.com/myerspat/pyMAISE>`_ outlining the
+        `pyMAISE GitHub repository <https://github.com/aims-umich/pyMAISE>`_ outlining the
         layer or optimizer required.
 
     Parameters

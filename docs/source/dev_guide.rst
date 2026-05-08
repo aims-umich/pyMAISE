@@ -35,6 +35,9 @@ pyMAISE currently supports Python 3.9, 3.10, and 3.11.
    -  `Jupyter <https://jupyter.org/>`_
    -  `OpenCV <https://opencv.org/>`_
    -  `SciPy <https://scipy.org/>`_
+   -  `slicer <https://slicer.readthedocs.io/>`_
+   -  `cloudpickle <https://github.com/cloudpipe/cloudpickle>`_
+   -  `numba <https://numba.pydata.org/>`_
 
 ----------------------
 Installation and Setup
@@ -45,7 +48,7 @@ Before cloning the repository, git and Python must be installed on your Linux di
 .. code-block:: sh
 
    # Clone the repository
-   git clone git@github.com:myerspat/pyMAISE.git
+   git clone git@github.com:aims-umich/pyMAISE.git
    cd pyMAISE/
 
    # Checkout the develop branch
