@@ -2,14 +2,35 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pooch
 import xarray as xr
 
 from pyMAISE.preprocessing import read_csv
 
-
-def _get_full_path(path: str):
-    """Get full pyMAISE data file path."""
-    return str(Path(__file__).parent / path)
+_DATASETS = pooch.create(
+    path=pooch.os_cache("pyMAISE"),
+    base_url="https://zenodo.org/records/20140559/files/",
+    registry={
+        "bwr_input.csv": "d227db1721ef4f354c84c18213ae92fd80a5e9a3e2681566ea863c1f6c2347de",
+        "bwr_output.csv": "fca2431fd7e64286da3a68004f0e177f8f009d8e4409f7759c3785c703dc86b1",
+        "chf_test_synth.csv": "1b1d84d1cca8d31b02a3b1fd496fe36f940942515f076a449875b88dc55a4ed1",
+        "chf_train_synth.csv": "038d95d623760f37e0eaa486c2aa0659037dab8643d8336061c68a2698ec9d3f",
+        "crx.csv": "ad02af6ab7bd92dca27b59c3c1c9a2418bfa0ab9d199b1e3520c586d27dda662",
+        "fp_inp.csv": "cf1e4c80685f540b73b3133fe43fcf373fdb744a22cf4fe4e4948852aa3c7525",
+        "fp_out.csv": "72811c5a55c497248a4675db64cd05009172ba4fb029dbc878567348a8333037",
+        "heat.csv": "8c3fb87a9a12ab8dc2833dc153ade7097ee34ba3ea01cd0bc082ac5a0283cd78",
+        "loca_break_flow_rate.csv": "b1a95954767866e69ac011a4a58d73403622d837bef6c5e2604fe1be48fc5a53",
+        "loca_core_pressure.csv": "cce483447c3890ad4d2c8291c7cc40b22e0bf0fb28590380f800bcd56580b2e1",
+        "loca_inp.csv": "8dcad4ee3b4522f23a0daead8184f22f85e7c72022a70592b66056da2b2dee59",
+        "loca_pct.csv": "b0d4367eb6059619c6350d030dce7ba61ef415cc4a1bf25a74c69805ab3ddf8d",
+        "loca_water_level.csv": "b54f3c1d640a9ad1022da264a27a80602d66a655031b3cda91b8c097f665cf3c",
+        "microreactor.csv": "032d022709ebfe2b69dd46bc6c5e6dc4f4419bb7c8c21d8e56a6b882e4ef9401",
+        "powery.csv": "c51be6c582187f1591523362d953bdade1db92c6cd6350c82e9c1a2373a23d0e",
+        "rea_inputs.csv": "abc79adc96e6c187520264ad2ff3f044d02b5fb6bbeb129d7cb384a42d214964",
+        "rea_outputs.csv": "c13f4b78a878e9dcceabe38812b75b37062f33398361a7469ebcbb440818c746",
+        "xs.csv": "714a8e424299609975920e26114ec47ec93bdc1399e05831ec60a0d68d9cce4f",
+    },
+)
 
 
 def load_MITR():
@@ -31,7 +52,7 @@ def load_MITR():
         Fuel element power.
     """
     return read_csv(
-        [_get_full_path("crx.csv"), _get_full_path("powery.csv")],
+        [_DATASETS.fetch("crx.csv"), _DATASETS.fetch("powery.csv")],
     )
 
 
@@ -137,12 +158,12 @@ def load_chf(data_path=None):
 
     else:
         train_data, xtrain, ytrain = read_csv(
-            _get_full_path("chf_train_synth.csv"),
+            _DATASETS.fetch("chf_train_synth.csv"),
             input_slice=slice(0, 6),
             output_slice=slice(6, 7),
         )
         test_data, xtest, ytest = read_csv(
-            _get_full_path("chf_test_synth.csv"),
+            _DATASETS.fetch("chf_test_synth.csv"),
             input_slice=slice(0, 6),
             output_slice=slice(6, 7),
         )
@@ -192,7 +213,7 @@ def load_xs():
     outputs: xarray.DataArray
         :math:`k`, neutron multiplication factor, data.
     """
-    return read_csv(_get_full_path("xs.csv"), slice(0, -1), slice(-1, None))
+    return read_csv(_DATASETS.fetch("xs.csv"), slice(0, -1), slice(-1, None))
 
 
 def load_fp():
@@ -236,7 +257,7 @@ def load_fp():
     outputs: xarray.DataArray
         4 outputs.
     """
-    return read_csv([_get_full_path("fp_inp.csv"), _get_full_path("fp_out.csv")])
+    return read_csv([_DATASETS.fetch("fp_inp.csv"), _DATASETS.fetch("fp_out.csv")])
 
 
 def load_heat():
@@ -278,7 +299,7 @@ def load_heat():
     outputs: xarray.DataArray
         Fuel centerline temperature.
     """
-    return read_csv(_get_full_path("heat.csv"), slice(0, -1), slice(-1, None))
+    return read_csv(_DATASETS.fetch("heat.csv"), slice(0, -1), slice(-1, None))
 
 
 def load_rea():
@@ -312,8 +333,8 @@ def load_rea():
     """
     return read_csv(
         [
-            _get_full_path("rea_inputs.csv"),
-            _get_full_path("rea_outputs.csv"),
+            _DATASETS.fetch("rea_inputs.csv"),
+            _DATASETS.fetch("rea_outputs.csv"),
         ],
     )
 
@@ -372,8 +393,8 @@ def load_BWR():
     """
     return read_csv(
         [
-            _get_full_path("bwr_input.csv"),
-            _get_full_path("bwr_output.csv"),
+            _DATASETS.fetch("bwr_input.csv"),
+            _DATASETS.fetch("bwr_output.csv"),
         ],
     )
 
@@ -423,8 +444,7 @@ def load_HTGR():
     outputs: xarray.DataArray
         Four outputs.
     """
-
-    return read_csv(_get_full_path("microreactor.csv"), slice(29, 37), slice(4, 8))
+    return read_csv(_DATASETS.fetch("microreactor.csv"), slice(29, 37), slice(4, 8))
 
 
 def load_loca(stack_series=False):
@@ -459,8 +479,6 @@ def load_loca(stack_series=False):
         The 2D or 3D perturbed LOCA data. If 2D it is shape (800000, 44)
         and if 3D then the shape is (2000, 400, 44).
     """
-    # Paths
-    input_path = _get_full_path("loca_inp.csv")
     output_paths = {
         "Pellet Cladding Temperature": "loca_pct.csv",
         "Core Pressure": "loca_core_pressure.csv",
@@ -472,12 +490,12 @@ def load_loca(stack_series=False):
     outputs = []
     for path in output_paths.values():
         outputs.append(
-            pd.read_csv(_get_full_path(path), header=None).values.T[:, :, np.newaxis]
+            pd.read_csv(_DATASETS.fetch(path), header=None).values.T[:, :, np.newaxis]
         )
     outputs = np.concatenate(outputs, axis=-1)
 
     # Read inputs and propogate time-independent variables in time
-    raw_inputs = pd.read_csv(input_path)
+    raw_inputs = pd.read_csv(_DATASETS.fetch("loca_inp.csv"))
     inputs = np.repeat(raw_inputs.values[:, np.newaxis, :], outputs.shape[1], axis=1)
 
     # Combine into one data set
@@ -533,8 +551,8 @@ def load_anomaly(
 ):
     """
     Load time series electronic signal data from `Mendeley <https://da\
-    ta.mendeley.com/datasets/kbbrw99vh8/5>`_ provided by :cite:`RADAIDEH2022103704,\
-    radaideh2023early`. This dataset derives from the measurement of 14 parameters
+ta.mendeley.com/datasets/kbbrw99vh8/5>`_ provided by :cite:`RADAIDEH2022103704,\
+radaideh2023early`. This dataset derives from the measurement of 14 parameters
     of the high voltage converter modulators (HVCMs) used at the Spallation
     Neutron Source facility. Each of these waveforms were classified as "fault"
     or "run" depending on the failure of the HVCM during operation.

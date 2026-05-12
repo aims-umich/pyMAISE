@@ -33,6 +33,7 @@ setup(
         "slicer==0.0.8",
         "numba==0.60.0",
         "cloudpickle==3.0.0",
+        "pooch",
     ],
     extras_require={
         "dev": [
@@ -53,8 +54,7 @@ setup(
         ],
         "benchmarks": ["jupyter", "opencv-python", "scipy"],
     },
-    package_data={"pyMAISE.datasets": ["*.csv"]},
-    description="Michigan Artificial Intelligance Standard Environment",
+description="Michigan Artificial Intelligance Standard Environment",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="Patrick Myers",

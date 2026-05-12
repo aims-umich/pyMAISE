@@ -2,6 +2,9 @@
 best_hp/
 stubs/
 
+# Dataset CSV files (hosted externally on Zenodo, fetched via pooch)
+pyMAISE/datasets/*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
