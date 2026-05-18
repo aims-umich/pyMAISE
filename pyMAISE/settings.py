@@ -1,10 +1,9 @@
 import os
 import random
-import warnings
 from enum import Enum
 
 import numpy as np
-import tensorflow as tf
+import torch
 
 
 class ProblemType(Enum):
@@ -45,26 +44,14 @@ class Settings:
         if self._cuda_visible_devices is not None:
             os.environ["CUDA_VISIBLE_DEVICES"] = self._cuda_visible_devices
 
-        if self._verbosity != 0:
-            warnings.simplefilter(action="ignore", category=Warning)
-            warnings.simplefilter(action="ignore", category=FutureWarning)
-
         if self._random_state is not None:
             os.environ["PYTHONHASHSEED"] = str(self._random_state)
             random.seed(self._random_state)
             np.random.seed(self._random_state)
-            tf.compat.v1.set_random_seed(self._random_state)
-            tf.random.set_seed(self._random_state)
-
-            # Deterministic tensorflow
-            os.environ["TF_DETERMINISTIC_OPS"] = "1"
-            os.environ["TF_CUBNN_DETERMINISTIC"] = "1"
-
-        if self._cuda_visible_devices == "-1" and self._run_parallel is True:
-            raise RuntimeError(
-                "Parallel running is only supported on GPUs; "
-                + "therefore, CUDA_VISIBLE_DEVICES cannot be '-1'"
-            )
+            torch.manual_seed(self._random_state)
+            torch.cuda.manual_seed_all(self._random_state)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
 
     # Getters
     @property
@@ -157,20 +144,13 @@ def init(problem_type, **kwargs):
         Controls the hyperparameter tuning architecture used for
         tuning neural network models.
     cuda_visible_devices: str or None, default=None
-        Devices visible to tensorflow. Sets the CUDA_VISIBLE_DEVICES
+        Devices visible to PyTorch. Sets the CUDA_VISIBLE_DEVICES
         environment variable.
     run_parallel: bool, default=False
-        Controls NN hyperparameter tuning parallelization. If ``True`` then
-        pyMAISE launches process within all available GPUs (depends on tuning
-        strategy). By default pyMAISE attempts to approximate the memory
-        footprint of each model to ensure a given GPU
-        is fully utilized. This may be unstable. To control the maximum
-        number of models allowed on a given GPU set the ``max_models_per_device``
-        argument. **Parallel is only supported for GPUs and assumes
-        at least one model will fit into one GPU.**
+        Run cross-validation folds in parallel across available GPUs.
+        Requires at least one CUDA-capable GPU.
     max_models_per_device: int, default=numpy.inf
-        The maximum number of NN models allowed on a single GPU
-        during tuning when running in parallel (``run_parallel = True``).
+        Maximum number of concurrent folds per GPU in parallel mode.
 
     Returns
     -------

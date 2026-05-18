@@ -1,307 +1,284 @@
-from multiprocessing import Process, Manager
-import copy
-import os
+import warnings
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
-import keras_tuner as kt
+import optuna
+import torch
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.utils.multiclass import type_of_target
-from tqdm.auto import tqdm
 
 import pyMAISE.settings as settings
-from .display import _try_clear
-from .process_pool import ProcessPool
-from .trial import Trial, TrialStatus
-from .tuner_utils import validate_trial_results
+from .trial import determine_class_from_probabilities
 
 
-class NNTuner(kt.engine.tuner.Tuner):
+def _run_fold_subprocess(
+    hypermodel,
+    trial_params,
+    xtrain,
+    xval,
+    ytrain,
+    yval,
+    y_all,
+    device,
+    metrics,
+    problem_type,
+):
+    """
+    Run one CV fold in a subprocess.
+
+    This is a module-level function (not a method) so that
+    ``concurrent.futures.ProcessPoolExecutor`` can pickle it for dispatch to
+    worker processes.
+
+    The live Optuna ``trial`` object is not picklable, so ``trial_params``
+    (a plain dict) is passed and replayed via ``FixedTrial``.  Each subprocess
+    builds a fresh model with the same hyperparameter values but independently
+    initialized weights, then assigns it to the requested ``device`` before
+    fitting.
+    """
+    import optuna as _optuna
+    from pyMAISE.settings import ProblemType
+    from pyMAISE.utils.trial import determine_class_from_probabilities as _dcfp
+
+    fixed_trial = _optuna.trial.FixedTrial(trial_params)
+
+    # Build the model then assign the GPU before fitting.
+    # skorch reads self.device in NeuralNet.initialize(), which runs at the
+    # start of fit(), so set_params() must be called beforehand.
+    model = hypermodel.build(fixed_trial)
+    model.set_params(device=device)
+
+    hypermodel.fit(fixed_trial, model, xtrain, ytrain)
+
+    yval_pred = model.predict(xval)
+
+    if problem_type == ProblemType.CLASSIFICATION:
+        yval_pred = _dcfp(yval_pred, y_all)
+
+    if metrics is not None:
+        return float(
+            metrics(
+                yval_pred.reshape(-1, yval.shape[-1]),
+                yval.reshape(-1, yval.shape[-1]),
+            )
+        )
+
+    if problem_type == ProblemType.CLASSIFICATION:
+        return 1.0 - float(np.mean(yval_pred.reshape(-1) == yval.reshape(-1)))
+    return float(np.mean((yval_pred - yval) ** 2))
+
+
+class NNTuner:
+    """
+    Hyperparameter tuner for pyMAISE neural networks using Optuna.
+
+    Replaces the keras-tuner ``Tuner`` base class.  Each call to ``search()``
+    creates a fresh Optuna study, runs ``n_trials`` trials, and evaluates each
+    trial via k-fold cross-validation.
+
+    When ``settings.values.run_parallel`` is ``True`` and at least two CUDA
+    GPUs are available, the CV folds within each trial are distributed across
+    GPUs using ``ProcessPoolExecutor``.  If fewer than two GPUs are found a
+    ``UserWarning`` is issued and execution falls back to serial.  Trials
+    themselves always run sequentially so that all Optuna samplers (including
+    ``GridSampler`` and ``TPESampler``) work without a shared storage backend.
+
+    Parameters
+    ----------
+    hypermodel: nnHyperModel
+        Hypermodel whose ``build()`` and ``fit()`` methods are called per fold.
+    sampler: optuna.samplers.BaseSampler
+        Optuna sampler (e.g. ``GridSampler``, ``TPESampler``, ``RandomSampler``).
+    n_trials: int
+        Number of Optuna trials to run.  For grid search this should equal the
+        total number of grid points so the sampler exhausts the space exactly once.
+    objective: str
+        Display name shown in progress output.  Not used by Optuna internally.
+    cv: int or sklearn CV splitter
+        Number of folds or a pre-configured splitter with a ``split(x, y)`` method.
+    shuffle: bool
+        Whether to shuffle before splitting (only used when ``cv`` is an int).
+    metrics: callable or None
+        ``metrics(y_pred, y_true) -> float`` scoring function.  When ``None`` a
+        default is used: MSE for regression, error rate for classification.
+    direction: str
+        ``"minimize"`` or ``"maximize"``; passed directly to ``optuna.create_study``.
+    """
+
     def __init__(
         self,
-        oracle,
         hypermodel,
-        objective,
+        sampler,
+        n_trials,
+        objective="score",
         cv=5,
         shuffle=True,
         metrics=None,
-        directory=None,
-        project_name=None,
-        tuner_id=None,
-        overwrite=False,
-        executions_per_trial=1,
-        verbose=0,
-        **kwargs,
+        direction="minimize",
     ):
-        self.oracle = oracle
         self.hypermodel = hypermodel
+        self._sampler = sampler
+        self._n_trials = n_trials
         self._objective = objective
         self._cv = cv
         self._shuffle = shuffle
         self._metrics = metrics
-        self._verbose = verbose
-        self._executions_per_trial = executions_per_trial
-        self._run_parallel = True
+        self._direction = direction
 
-        self._running_trials = []
-        self._p = None
-
-        if not isinstance(oracle, kt.engine.oracle.Oracle):
-            raise ValueError(
-                "Expected `oracle` argument to be an instance of `Oracle`. "
-                f"Received: oracle={oracle} (of type ({type(oracle)})."
-            )
-
-        if len(kwargs) > 0:
-            raise ValueError(
-                f"Unrecognized arguments {list(kwargs.keys())} "
-                "for `BaseTuner.__init__()`."
-            )
-
-        # Ops and metadata
-        self.directory = directory or "."
-        self.project_name = project_name or "untitled_project"
-        self.oracle._set_project_dir(self.directory, self.project_name)
-
-        # To support tuning distribution.
-        self.tuner_id = os.environ.get("KERASTUNER_TUNER_ID", "tuner0")
-
-        # Reloading state.
-        self._populate_initial_space()
+        self._study = None
+        # Stores per-fold scores for each trial so std_test_score can be computed.
+        self._trial_fold_scores = {}
 
     # =======================================================================
     # Methods
 
-    def _populate_initial_space(self):
-        # Declare_hyperparameters is not overriden.
-        hp = self.oracle.get_space()
-        self.hypermodel.declare_hyperparameters(hp)
-        self.oracle.update_space(hp)
+    def search(self, x, y):
+        """
+        Run the hyperparameter search.
 
-        if settings.values.run_parallel:
-            with Manager() as manager:
-                hps = manager.list()
-
-                process = Process(
-                    target=self._activate_conditions,
-                    args=(hps, self.hypermodel, self.oracle),
-                )
-                process.start()
-                process.join()
-                assert process.exitcode == 0
-                process.terminate()
-
-                # Update hyperparameter space
-                self.oracle.hyperparameters = hps[0]
-
-                hp.ensure_active_values()
-
-        else:
-            hps = []
-            self._activate_conditions(hps, self.hypermodel, self.oracle)
-
-            # Update hyperparameter space
-            self.oracle.hyperparameters = hps[0]
-
-            hp.ensure_active_values()
-
-    def search(self, x, y, *fit_args, **fit_kwargs):
-        if "verbose" in fit_kwargs:
-            self._verbose = fit_kwargs.get("verbose")
-            self.oracle.verbose = self._verbose
-
-        # Initialize CV
+        Parameters
+        ----------
+        x: numpy.ndarray
+            Input features.
+        y: numpy.ndarray
+            Target values.
+        """
+        # Initialize CV splitter (turns an int into KFold or StratifiedKFold)
         self._cv = self._init_cv(self._cv, self._shuffle, y)
 
-        # Initialize progress bar
-        if self._verbose == 0:
-            num_trials = (
-                self.oracle.max_trials
-                if self.oracle.max_trials
-                else np.prod(
-                    [len(hp._values) for hp in self.hypermodel.get_hyperparameters()]
-                )
-            ) * self._cv.n_splits
-
-            self._p = tqdm(range(int(num_trials)), desc=self.hypermodel._name)
-
-        else:
+        # In quiet mode, suppress per-trial Optuna output and show a progress
+        # bar instead.  In verbose mode, show Optuna trial details.
+        if settings.values.verbosity == 0:
+            optuna.logging.set_verbosity(optuna.logging.WARNING)
             print(f"Tuning {self.hypermodel._name}")
-
-        {True: self._parallel_search, False: self._serial_search}[
-            settings.values.run_parallel
-        ](x, y)
-
-    def _parallel_search(self, x, y):
-        # Create process pool
-        process_pool = ProcessPool()
-
-        # Run search
-        self.on_search_begin()
-
-        submitted_last_trial = False
-
-        while True:
-            # Clean each current running trial from finished processes
-            n = 0
-            for trail in self._running_trials:
-                n += trail.clean_processes()
-
-            if self._p:
-                self._p.n += n
-                self._p.refresh()
-
-            # Iterate through existing trials
-            create_new_trial = True
-            for i, trial in enumerate(self._running_trials):
-                if trial.status == TrialStatus.RUNNING:
-                    # Add additional splits and don't create any new trials
-                    trial.add_process_batch()
-                    create_new_trial = False
-
-                elif trial.status == TrialStatus.FINISHED:
-                    # End trial
-                    self.end_trial(trial)
-
-                    # Remove from trial pool
-                    self._running_trials.pop(i)
-
-                elif trial.status == TrialStatus.ALL_SUBMITTED and isinstance(
-                    self.oracle, kt.oracles.BayesianOptimizationOracle
-                ):
-                    # Only create one trial at a time
-                    create_new_trial = False
-
-            if create_new_trial and not submitted_last_trial:
-                # Create keras tuner trial
-                self.pre_create_trial()
-                kt_trial = self._create_trial(self.tuner_id)
-
-                # Check if all trails are submitted
-                if kt_trial.status == kt.engine.trial.TrialStatus.STOPPED:
-                    submitted_last_trial = True
-
-                else:
-                    # Add trial and start it
-                    self.on_trial_begin(kt_trial)
-                    self._running_trials[-1].start_trial(
-                        cv=self._cv,
-                        inputs=x,
-                        outputs=y,
-                        process_pool=process_pool,
-                    )
-
-            # If all trials are done then finalize and break
-            elif submitted_last_trial and not self._running_trials:
-                self.on_search_end()
-
-                if self._verbose == 0:
-                    _try_clear()
-
-                return
-
-    def _serial_search(self, x, y):
-        # Start search
-        self.on_search_begin()
-
-        while True:
-            if self._p:
-                self._p.refresh()
-
-            # Create new keras tuner trial
-            self.pre_create_trial()
-            kt_trial = self._create_trial(self.tuner_id)
-
-            # If there are no more trials then finish search
-            if kt_trial.status == kt.engine.trial.TrialStatus.STOPPED:
-                self.on_search_end()
-
-                if self._verbose == 0:
-                    _try_clear()
-
-                return
-
-            # Initialize trial
-            self.on_trial_begin(kt_trial)
-            trial = self._running_trials.pop()
-            trial.start_trial(
-                cv=self._cv,
-                inputs=x,
-                outputs=y,
-                process_pool=None,
-            )
-
-            # Run through all CV splits
-            trial.serial_cv(self._p)
-
-            # Finalize trial
-            self.end_trial(trial)
-
-    def on_trial_begin(self, trial):
-        # Append trial to running trails
-        self._running_trials.append(
-            Trial(
-                hypermodel=self.hypermodel,
-                kt_trial=trial,
-                metrics=self._metrics,
-                objective=self._objective,
-            )
-        )
-
-    def end_trial(self, trial):
-        # Finalize trial and save scores
-        mean_test_score, std_test_score = trial.finalize()
-        trial.kt_trial.status = kt.engine.trial.TrialStatus.COMPLETED
-
-        # Add results to oracle and keras tuner trial
-        result = {
-            self._objective: mean_test_score,
-            self._objective + "_std": std_test_score,
-        }
-
-        validate_trial_results(result, self.oracle.objective, "Tuner.run_trial()")
-        self.oracle.update_trial(trial.kt_trial.trial_id, metrics=result)
-        self.on_trial_end(trial.kt_trial)
-
-    def _create_trial(self, tuner_id):
-        # Make the trial_id the current number of trial, pre-padded with 0s
-        trial_id = f"{{:0{len(str(self.oracle.max_trials))}d}}"
-        trial_id = trial_id.format(len(self.oracle.trials))
-
-        if self.oracle.max_trials and len(self.oracle.trials) >= self.oracle.max_trials:
-            status = kt.engine.trial.TrialStatus.STOPPED
-            values = None
         else:
-            response = self.oracle.populate_space(trial_id)
-            status = response["status"]
-            values = response["values"] if "values" in response else None
+            optuna.logging.set_verbosity(optuna.logging.INFO)
 
-        hyperparameters = self.oracle.hyperparameters.copy()
-        hyperparameters.values = values or {}
-
-        trial = kt.engine.trial.Trial(
-            hyperparameters=hyperparameters, trial_id=trial_id, status=status
+        self._study = optuna.create_study(
+            direction=self._direction,
+            sampler=self._sampler,
         )
 
-        if status == kt.engine.trial.TrialStatus.RUNNING:
-            # Record the populated values (active only). Only record when the
-            # status is RUNNING. If other status, the trial will not run, the
-            # values are discarded and should not be recorded, in which case,
-            # the trial_id may appear again in the future.
-            self.oracle._record_values(trial)
+        self._study.optimize(
+            lambda trial: self._run_trial(trial, x, y),
+            n_trials=self._n_trials,
+            show_progress_bar=settings.values.verbosity == 0,
+        )
 
-            self.oracle.ongoing_trials[tuner_id] = trial
-            self.oracle.trials[trial_id] = trial
-            self.oracle.start_order.append(trial_id)
-            self.oracle._save_trial(trial)
-            self.save()
-            self.oracle._display.on_trial_begin(trial)
+    def _run_trial(self, trial, x, y):
+        """
+        Objective function passed to ``study.optimize()``.
 
-        return trial
+        Determines whether to run folds in parallel or serial, then collects
+        and records scores for this trial.
+        """
+        fold_splits = list(self._cv.split(x, y))
+
+        use_parallel = settings.values.run_parallel
+        if use_parallel:
+            n_gpus = torch.cuda.device_count()
+            if n_gpus < 2:
+                # Gracefully fall back to serial when the hardware can't support
+                # fold-level parallelism (0 GPUs = no acceleration at all; 1 GPU
+                # = folds would compete for memory on the same device).
+                # Python's warnings module deduplicates by default, so this
+                # message appears at most once per session.
+                warnings.warn(
+                    f"run_parallel=True requested but only {n_gpus} GPU(s) detected. "
+                    "Falling back to serial execution.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                use_parallel = False
+
+        if use_parallel:
+            scores = self._run_folds_parallel(trial, x, y, fold_splits, n_gpus)
+        else:
+            scores = self._run_folds_serial(trial, x, y, fold_splits)
+
+        self._trial_fold_scores[trial.number] = scores
+        return float(np.mean(scores))
+
+    def _run_folds_serial(self, trial, x, y, fold_splits):
+        """Run each CV fold sequentially in the current process."""
+        scores = []
+        for train_idx, val_idx in fold_splits:
+            xtrain, xval = x[train_idx], x[val_idx]
+            ytrain, yval = y[train_idx], y[val_idx]
+
+            # build() is safe to call multiple times per trial: Optuna caches
+            # suggest_* results within a trial, so the same architecture is
+            # reproduced each fold while weights are re-initialized from scratch.
+            model = self.hypermodel.build(trial)
+            self.hypermodel.fit(trial, model, xtrain, ytrain)
+
+            scores.append(self._evaluate(model, xval, yval, y))
+        return scores
+
+    def _run_folds_parallel(self, trial, x, y, fold_splits, n_gpus):
+        """
+        Dispatch each CV fold to a subprocess pinned to a distinct GPU.
+
+        Folds are assigned to GPUs round-robin (``fold_idx % n_gpus``), so
+        with 5 folds and 2 GPUs: folds 0, 2, 4 → cuda:0 and folds 1, 3 →
+        cuda:1.  ``ProcessPoolExecutor`` runs at most ``n_gpus`` subprocesses
+        simultaneously, naturally load-balancing across devices.
+        """
+        problem_type = settings.values.problem_type
+        trial_params = trial.params
+
+        futures = {}
+        with ProcessPoolExecutor(max_workers=n_gpus) as executor:
+            for fold_idx, (train_idx, val_idx) in enumerate(fold_splits):
+                fut = executor.submit(
+                    _run_fold_subprocess,
+                    self.hypermodel,
+                    trial_params,
+                    x[train_idx],
+                    x[val_idx],
+                    y[train_idx],
+                    y[val_idx],
+                    y,
+                    f"cuda:{fold_idx % n_gpus}",
+                    self._metrics,
+                    problem_type,
+                )
+                futures[fut] = fold_idx
+
+            # Collect results preserving fold order
+            scores_by_fold = {}
+            for fut in as_completed(futures):
+                scores_by_fold[futures[fut]] = fut.result()
+
+        return [scores_by_fold[i] for i in range(len(fold_splits))]
+
+    def _evaluate(self, model, xval, yval, y_all):
+        """Score a fitted skorch model on one validation fold (serial path)."""
+        # skorch predict() accepts numpy arrays and returns numpy arrays
+        yval_pred = model.predict(xval)
+
+        if settings.values.problem_type == settings.ProblemType.CLASSIFICATION:
+            yval_pred = determine_class_from_probabilities(yval_pred, y_all)
+
+        if self._metrics is not None:
+            return float(
+                self._metrics(
+                    yval_pred.reshape(-1, yval.shape[-1]),
+                    yval.reshape(-1, yval.shape[-1]),
+                )
+            )
+
+        # Default fallback so search() works when metrics is None
+        if settings.values.problem_type == settings.ProblemType.CLASSIFICATION:
+            return 1.0 - float(np.mean(yval_pred.reshape(-1) == yval.reshape(-1)))
+        return float(np.mean((yval_pred - yval) ** 2))
 
     # =======================================================================
     # Static Methods
+
     @staticmethod
     def _init_cv(cv, shuffle, y):
+        """Turn an integer fold count into a KFold or StratifiedKFold object."""
         if isinstance(cv, int):
             if (
                 settings.values.problem_type == settings.ProblemType.CLASSIFICATION
@@ -310,68 +287,34 @@ class NNTuner(kt.engine.tuner.Tuner):
                 return StratifiedKFold(
                     n_splits=cv,
                     shuffle=shuffle,
-                    random_state=(
-                        settings.values.random_state if shuffle is True else None
-                    ),
+                    random_state=settings.values.random_state if shuffle else None,
                 )
             else:
                 return KFold(
                     n_splits=cv,
                     shuffle=shuffle,
-                    random_state=(
-                        settings.values.random_state if shuffle is True else None
-                    ),
+                    random_state=settings.values.random_state if shuffle else None,
                 )
 
         return cv
-
-    @staticmethod
-    def _activate_conditions(*args):
-        hps, hypermodel, oracle = args
-
-        # Lists of stacks of conditions used during `explore_space()`.
-        scopes_never_active = []
-        scopes_once_active = []
-
-        hp = oracle.get_space()
-        while True:
-            hypermodel.build(hp)
-            oracle.update_space(hp)
-
-            # Update the recorded scopes.
-            for conditions in hp.active_scopes:
-                if conditions not in scopes_once_active:
-                    scopes_once_active.append(copy.deepcopy(conditions))
-                if conditions in scopes_never_active:
-                    scopes_never_active.remove(conditions)
-            for conditions in hp.inactive_scopes:
-                if conditions not in scopes_once_active:
-                    scopes_never_active.append(copy.deepcopy(conditions))
-
-            # All conditional scopes are activated.
-            if not scopes_never_active:
-                break
-
-            # Generate new values to activate new conditions.
-            hp = oracle.get_space()
-            conditions = scopes_never_active[0]
-            for condition in conditions:
-                hp.values[condition.name] = condition.values[0]
-
-            hp.ensure_active_values()
-
-        hps += [oracle.get_space()]
 
     # =======================================================================
     # Getters/Setters
 
     @property
     def mean_test_score(self):
-        return [trial.score for trial in self.oracle.trials.values()]
+        """Mean CV score for each completed trial, in trial order."""
+        return [t.value for t in self._study.trials]
 
     @property
     def std_test_score(self):
+        """Standard deviation of CV fold scores for each completed trial."""
         return [
-            trial.metrics.get_history(self._objective + "_std")[0].value[0]
-            for trial in self.oracle.trials.values()
+            float(np.std(self._trial_fold_scores[t.number]))
+            for t in self._study.trials
         ]
+
+    @property
+    def study(self):
+        """The underlying ``optuna.Study`` object."""
+        return self._study

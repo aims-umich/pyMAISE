@@ -1,6 +1,33 @@
-from tensorflow.keras.layers import Conv1D
+import torch.nn as nn
 
 from pyMAISE.methods.nn._layer import Layer
+from pyMAISE.methods.nn._utils import get_activation
+
+
+class _Conv1DBlock(nn.Module):
+    """1-D convolutional layer with optional activation.
+
+    Note: PyTorch Conv1d uses channels-first layout (N, C, L).
+    Input data should be shaped accordingly.
+    """
+
+    def __init__(self, in_channels, filters, kernel_size, stride, padding, activation, use_bias):
+        super().__init__()
+        self.conv = nn.Conv1d(
+            in_channels, filters, kernel_size,
+            stride=stride, padding=padding, bias=use_bias,
+        )
+        self.activation = get_activation(activation)
+
+    def forward(self, x):
+        return self.activation(self.conv(x))
+
+
+def _resolve_padding(padding_str, kernel_size):
+    if padding_str == "same":
+        # Approximate 'same' padding (valid only when stride=1)
+        return kernel_size // 2
+    return 0  # "valid"
 
 
 class Conv1DLayer(Layer):
@@ -12,15 +39,24 @@ class Conv1DLayer(Layer):
         # Build layer data
         self._data = super().build_data(self._data, parameters)
 
-        # Assert keras non-default variables are defined
+        # Assert non-default variables are defined
         assert self._data["filters"] is not None
         assert self._data["kernel_size"] is not None
 
     # ==========================================================================
     # Methods
-    def build(self, hp):
-        # Set pyMAISE hyperparameter to keras-tuner hyperparameter
-        return Conv1D(**super().sample_parameters(self._data, hp))
+    def build(self, trial, in_size):
+        # Sample parameters and build PyTorch Conv1d module.
+        # Keras-only params (data_format, dilation_rate, groups,
+        # initializers, regularizers, constraints) are silently dropped.
+        params = super().sample_parameters(self._data, trial)
+        filters = params["filters"]
+        kernel_size = params["kernel_size"]
+        stride = params.get("strides", 1)
+        padding = _resolve_padding(params.get("padding", "valid"), kernel_size)
+        activation = params.get("activation", "None")
+        use_bias = params.get("use_bias", True)
+        return _Conv1DBlock(in_size, filters, kernel_size, stride, padding, activation, use_bias), filters
 
     def reset(self):
         self._data = {
@@ -28,18 +64,8 @@ class Conv1DLayer(Layer):
             "kernel_size": None,
             "strides": 1,
             "padding": "valid",
-            "data_format": "channels_last",
-            "dilation_rate": 1,
-            "groups": 1,
             "activation": "None",
             "use_bias": True,
-            "kernel_initializer": "glorot_uniform",
-            "bias_initializer": "zeros",
-            "kernel_regularizer": None,
-            "bias_regularizer": None,
-            "activity_regularizer": None,
-            "kernel_constraint": None,
-            "bias_constraint": None,
         }
         super().reset()
 
@@ -48,11 +74,11 @@ class Conv1DLayer(Layer):
 
     # ==========================================================================
     # Getters
-    def num_layers(self, hp):
-        return super().num_layers(hp)
+    def num_layers(self, trial):
+        return super().num_layers(trial)
 
-    def sublayer(self, hp):
-        return super().sublayer(hp)
+    def sublayer(self, trial):
+        return super().sublayer(trial)
 
     def wrapper(self):
         return super().wrapper()

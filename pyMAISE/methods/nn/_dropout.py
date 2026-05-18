@@ -1,6 +1,5 @@
-from tensorflow.keras.layers import Dropout
+import torch.nn as nn
 
-import pyMAISE.settings as settings
 from pyMAISE.methods.nn._layer import Layer
 
 
@@ -15,15 +14,14 @@ class DropoutLayer(Layer):
 
     # ==========================================================================
     # Methods
-    def build(self, hp):
-        # Set pyMAISE hyperparameter to keras-tuner hyperparameter
-        return Dropout(**super().sample_parameters(self._data, hp))
+    def build(self, trial, in_size):
+        # Sample parameters and build PyTorch Dropout module
+        params = super().sample_parameters(self._data, trial)
+        return nn.Dropout(p=params["rate"]), in_size
 
     def reset(self):
         self._data = {
             "rate": 0.2,
-            "noise_shape": None,
-            "seed": settings.values.random_state,
         }
         super().reset()
 
@@ -32,11 +30,11 @@ class DropoutLayer(Layer):
 
     # ==========================================================================
     # Getters
-    def num_layers(self, hp):
-        return super().num_layers(hp)
+    def num_layers(self, trial):
+        return super().num_layers(trial)
 
-    def sublayer(self, hp):
-        return super().sublayer(hp)
+    def sublayer(self, trial):
+        return super().sublayer(trial)
 
     def wrapper(self):
         return super().wrapper()

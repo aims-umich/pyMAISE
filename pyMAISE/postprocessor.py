@@ -2,10 +2,13 @@ import copy
 import math
 import pickle
 
-import keras_tuner as kt
 import matplotlib.pyplot as plt
 import numpy as np
+import optuna
 import pandas as pd
+import torch
+from skorch import NeuralNetClassifier, NeuralNetRegressor
+from torchview import draw_graph
 from sklearn.metrics import (
     ConfusionMatrixDisplay,
     accuracy_score,
@@ -19,7 +22,6 @@ from sklearn.metrics import (
     recall_score,
 )
 from tqdm.auto import tqdm
-import tensorflow as tf
 
 import pyMAISE.settings as settings
 from pyMAISE.tuner import Tuner
@@ -79,12 +81,8 @@ class PostProcessor:
                 # Get all model wrappers and update parameter configurations if needed
                 estimator = configs[1]
                 if new_model_settings is not None and model in new_model_settings:
-                    if (
-                        model in Tuner.supported_classical_models
-                        or not settings.values.new_nn_architecture
-                    ):
+                    if model in Tuner.supported_classical_models:
                         estimator = estimator.set_params(**new_model_settings[model])
-
                     else:
                         estimator.set_params(new_model_settings[model])
 
@@ -168,24 +166,15 @@ class PostProcessor:
             p.n += 1
             p.refresh()
 
-            # Extract regressor for the configuration
-            regressor = None
-            if (
-                self._models["Model Types"][i] in Tuner.supported_classical_models
-                or not settings.values.new_nn_architecture
-            ):
+            is_classical = self._models["Model Types"][i] in Tuner.supported_classical_models
+
+            if is_classical:
+                # Classical sklearn models: apply params via set_params then fit.
                 regressor = self._models["Model Wrappers"][i].set_params(
                     **self._models["Parameter Configurations"][i]
                 )
-            else:
-                regressor = self._models["Model Wrappers"][i].build(
-                    self._models["Parameter Configurations"][i]
-                )
-
-            # Append learning curve history of neural networks and run fit for all
-            if self._models["Model Types"][i] in Tuner.supported_classical_models:
-                # Change final dimension if there is only one feature
-                # in any of these arrays
+                # Drop the last dimension when there is only one feature so sklearn
+                # receives a 1-D array rather than (N, 1).
                 xtrain = (
                     self._xtrain
                     if self._xtrain.shape[-1] > 1
@@ -198,68 +187,65 @@ class PostProcessor:
                 )
                 regressor.fit(xtrain.values, ytrain.values)
                 histories.append(None)
+
+                # Predict (sklearn accept numpy; xarray coerces implicitly but
+                # .values is explicit and safe)
+                yhat_train.append(
+                    regressor.predict(self._xtrain.values).reshape(
+                        -1, self._ytrain.shape[-1]
+                    )
+                )
+                yhat_test.append(
+                    regressor.predict(self._xtest.values).reshape(
+                        -1, self._ytest.shape[-1]
+                    )
+                )
+
             else:
-                if not settings.values.new_nn_architecture:
-                    histories.append(
-                        regressor.fit(
-                            self._xtrain.values,
-                            self._ytrain.values,
-                        ).model.history.history
+                # Neural network models: reconstruct the exact trial from the
+                # stored params dict using FixedTrial so build() receives the
+                # same hyperparameter values that were selected during search.
+                params = self._models["Parameter Configurations"][i]
+                fixed_trial = optuna.trial.FixedTrial(params)
+                regressor = self._models["Model Wrappers"][i].build(fixed_trial)
+
+                # fit() now returns {"loss": [...], "val_loss": [...]} directly;
+                # no .model.history.history chaining needed.
+                history = self._models["Model Wrappers"][i].fit(
+                    fixed_trial,
+                    regressor,
+                    self._xtrain.values,
+                    self._ytrain.values,
+                )
+                histories.append(history)
+
+                # skorch predict() accepts numpy arrays and returns numpy.
+                # verbose is set at construction time (verbose=0 in build()),
+                # so it is not passed here.
+                if settings.values.problem_type == settings.ProblemType.REGRESSION:
+                    yhat_train.append(
+                        regressor.predict(self._xtrain.values).reshape(
+                            -1, self._ytrain.shape[-1]
+                        )
+                    )
+                    yhat_test.append(
+                        regressor.predict(self._xtest.values).reshape(
+                            -1, self._ytest.shape[-1]
+                        )
                     )
                 else:
-                    histories.append(
-                        self._models["Model Wrappers"][i]
-                        .fit(
-                            self._models["Parameter Configurations"][i],
-                            regressor,
-                            self._xtrain.values,
+                    yhat_train.append(
+                        determine_class_from_probabilities(
+                            regressor.predict(self._xtrain.values),
                             self._ytrain.values,
-                        )
-                        .model.history.history
+                        ).reshape(-1, self._ytrain.shape[-1])
                     )
-                    if settings.values.problem_type == settings.ProblemType.REGRESSION:
-                        # Append training and testing predictions
-                        yhat_train.append(
-                            regressor.predict(
-                                self._xtrain, verbose=settings.values.verbosity
-                            ).reshape(-1, self._ytrain.shape[-1])
-                        )
-                        yhat_test.append(
-                            regressor.predict(
-                                self._xtest, verbose=settings.values.verbosity
-                            ).reshape(-1, self._ytest.shape[-1])
-                        )
-                        continue
-
-                    else:
-                        # Append training and testing predictions
-                        yhat_train.append(
-                            determine_class_from_probabilities(
-                                regressor.predict(
-                                    self._xtrain.values,
-                                    verbose=settings.values.verbosity,
-                                ),
-                                self._ytrain.values,
-                            ).reshape(-1, self._ytrain.shape[-1])
-                        )
-                        yhat_test.append(
-                            determine_class_from_probabilities(
-                                regressor.predict(
-                                    self._xtest.values,
-                                    verbose=settings.values.verbosity,
-                                ),
-                                self._ytest.values,
-                            ).reshape(-1, self._ytest.shape[-1])
-                        )
-                        continue
-
-            # Append training and testing predictions
-            yhat_train.append(
-                regressor.predict(self._xtrain).reshape(-1, self._ytrain.shape[-1])
-            )
-            yhat_test.append(
-                regressor.predict(self._xtest).reshape(-1, self._ytest.shape[-1])
-            )
+                    yhat_test.append(
+                        determine_class_from_probabilities(
+                            regressor.predict(self._xtest.values),
+                            self._ytest.values,
+                        ).reshape(-1, self._ytest.shape[-1])
+                    )
 
         return (yhat_train, yhat_test, histories)
 
@@ -444,14 +430,8 @@ class PostProcessor:
             ]
         )
 
-        hyperparams = []
-        for i in range(models.shape[0]):
-            if isinstance(models["Parameter Configurations"][i], kt.HyperParameters):
-                hyperparams.append(models["Parameter Configurations"][i].values)
-            else:
-                hyperparams.append(models["Parameter Configurations"][i])
-
-        models["Parameter Configurations"] = hyperparams
+        # Parameter Configurations are now always plain dicts (from trial.params).
+        models["Parameter Configurations"] = models["Parameter Configurations"].tolist()
 
         if model_type is None:
             return models.sort_values(sort_by, ascending=[ascending])
@@ -559,9 +539,9 @@ class PostProcessor:
             The direction to ``sort_by``. It is only required if ``sort_by`` is not
             a default metric.
         directory: str, default="."
-            Directory to save the models to. All sklearn models will be saved as
-            pickles and the keras models will be in TensorFlow's SavedModel
-            format.
+            Directory to save the models to. Classical sklearn models are saved as
+            pickles (``.pkl``) and neural network models are saved as PyTorch
+            checkpoints (``.pt``).
         """
         # Get indices
         if idxs:
@@ -628,16 +608,15 @@ class PostProcessor:
             # Train model
             model = self.get_model(idx=idx)
 
-            # Save model
-            if isinstance(model, tf.keras.models.Sequential):
-                model.save(f"{directory}/{self._models['Model Types'][idx]}_{idx}")
+            # Save model: PyTorch/skorch models use torch.save (.pt);
+            # classical sklearn models are pickled (.pkl).
+            model_name = f"{self._models['Model Types'][idx]}_{idx}"
+            if isinstance(model, (NeuralNetRegressor, NeuralNetClassifier)):
+                torch.save(model, f"{directory}/{model_name}.pt")
             else:
                 pickle.dump(
                     model,
-                    open(
-                        f"{directory}/{self._models['Model Types'][idx]}_{idx}.pkl",
-                        "wb",
-                    ),
+                    open(f"{directory}/{model_name}.pkl", "wb"),
                 )
 
             if p:
@@ -714,13 +693,8 @@ class PostProcessor:
             idx=idx, model_type=model_type, sort_by=sort_by, direction=direction
         )
 
-        # Get values from pyMAISE.HyperParameters
+        # Parameter Configurations are plain dicts for both classical and NN models.
         parameters = copy.deepcopy(self._models["Parameter Configurations"][idx])
-        if (
-            self._models["Model Types"][idx] not in Tuner.supported_classical_models
-            and settings.values.new_nn_architecture
-        ):
-            parameters = parameters.values
         model_type = self._models["Model Types"][idx]
 
         return pd.DataFrame({"Model Types": [model_type], **parameters})
@@ -749,7 +723,7 @@ class PostProcessor:
 
         Returns
         -------
-        model: sklearn or keras model
+        model: sklearn estimator or skorch NeuralNet
             The model refit based on the parameters from the arguments.
         """
         # Determine the index of the model in the DataFrame
@@ -758,11 +732,7 @@ class PostProcessor:
         )
 
         # Get regressor and fit the model
-        regressor = None
-        if (
-            self._models["Model Types"][idx] in Tuner.supported_classical_models
-            or not settings.values.new_nn_architecture
-        ):
+        if self._models["Model Types"][idx] in Tuner.supported_classical_models:
             xtrain = (
                 self._xtrain
                 if self._xtrain.shape[-1] > 1
@@ -776,17 +746,17 @@ class PostProcessor:
             regressor = (
                 self._models["Model Wrappers"][idx]
                 .set_params(**self._models["Parameter Configurations"][idx])
-                .fit(xtrain, ytrain)
+                .fit(xtrain.values, ytrain.values)
             )
 
         else:
-            regressor = self._models["Model Wrappers"][idx].build(
-                self._models["Parameter Configurations"][idx]
-            )
-            regressor._name = self._models["Model Types"][idx]
-
+            # Reconstruct the trial from the stored params dict so build()
+            # receives the exact hyperparameter values chosen during search.
+            params = self._models["Parameter Configurations"][idx]
+            fixed_trial = optuna.trial.FixedTrial(params)
+            regressor = self._models["Model Wrappers"][idx].build(fixed_trial)
             self._models["Model Wrappers"][idx].fit(
-                self._models["Parameter Configurations"][idx],
+                fixed_trial,
                 regressor,
                 self._xtrain.values,
                 self._ytrain.values,
@@ -1014,9 +984,7 @@ class PostProcessor:
 
         return ax
 
-    def print_model(
-        self, idx=None, model_type=None, sort_by=None, direction=None, **kwargs
-    ):
+    def print_model(self, idx=None, model_type=None, sort_by=None, direction=None):
         """
         Print a models tuned hyperparameters.
 
@@ -1028,7 +996,7 @@ class PostProcessor:
         model_type: str or None, default=None
             The model name to get. Will get the best model predictions based on
             ``sort_by``.
-        sort_by: str or None, detault=None
+        sort_by: str or None, default=None
             The metric to sort the pandas.DataFrame from
             :meth:`pyMAISE.PostProcessor.metrics` by. If ``None`` then
             ``test r2_score`` is used for :attr:`pyMAISE.ProblemType.REGRESSION`
@@ -1037,10 +1005,6 @@ class PostProcessor:
         direction: 'min', 'max', or None, default=None
             The direction to ``sort_by``. It is only required if ``sort_by`` is not
             a default metric.
-        kwargs:
-            Any arguments used by `tensorflow.keras.Sequential.summary()
-            <https://www.tensorflow.org/api_docs/python/tf/keras/Sequential#summ\
-            ary>`_.
         """
         # Determine the index of the model in the DataFrame
         idx = self._get_idx(
@@ -1056,59 +1020,52 @@ class PostProcessor:
 
         # Print parameters if not NN else ensure only pertinent information is printed
         print(f"Model Type: {params.pop('Model Types')[0]}")
-        if (
-            model_type in Tuner.supported_classical_models
-            or not settings.values.new_nn_architecture
-        ):
+        if model_type in Tuner.supported_classical_models:
             for key, value in params.items():
                 print(f"  {key}: {value[0]}")
         else:
-            # Get keras model
-            model = self._models["Model Wrappers"][idx].build(
-                self._models["Parameter Configurations"][idx]
-            )
+            # Rebuild the model with FixedTrial to get the PyTorch module structure.
+            stored_params = self._models["Parameter Configurations"][idx]
+            fixed_trial = optuna.trial.FixedTrial(stored_params)
+            model = self._models["Model Wrappers"][idx].build(fixed_trial)
 
-            # Iterate through layers
+            # Print tuned hyperparameters grouped by whether they belong to a
+            # structural layer or to compile/fitting configuration.
             print("  Structural Hyperparameters")
-            for layer in model.layers:
-                print(f"    Layer: {layer.name}")
-
-                # Iterate through layer specific tuned parameters
-                for key in copy.deepcopy(params).keys():
-                    if layer.name in key:
-                        reduced_key = key.replace(f"{layer.name}_", "")
-
-                        if reduced_key == "sublayer" or "sublayer" not in reduced_key:
-                            print(
-                                f"      {reduced_key}: "
-                                + f"{params.pop(f'{layer.name}_{reduced_key}')[0]}"
-                            )
-
-            # Iterate through parameters to print non-layer hyperparameters
-            print("  Compile/Fitting Hyperparameters")
             for key, value in params.items():
-                print_param = True
-
-                for layer_name in self._models["Model Wrappers"][idx].layer_dict.keys():
-                    if layer_name in key:
-                        print_param = False
-                        break
-
-                if print_param:
+                is_layer_param = any(
+                    layer_name in key
+                    for layer_name in self._models["Model Wrappers"][idx].layer_dict
+                )
+                if is_layer_param:
                     print(f"    {key}: {value[0]}")
 
-            model.summary(**kwargs)
+            print("  Compile/Fitting Hyperparameters")
+            for key, value in params.items():
+                is_layer_param = any(
+                    layer_name in key
+                    for layer_name in self._models["Model Wrappers"][idx].layer_dict
+                )
+                if not is_layer_param:
+                    print(f"    {key}: {value[0]}")
+
+            # Print the PyTorch module structure (equivalent of Keras .summary()).
+            # initialize() materializes module_ without requiring a full fit.
+            model.initialize()
+            print("\n  Module Structure")
+            print(model.module_)
 
     def nn_network_plot(
         self, idx=None, model_type=None, sort_by=None, direction=None, **kwargs
     ):
         """
-        Plot NN network.
+        Plot NN network architecture using torchview.
 
         .. note::
 
-           For this to work you must have graphviz installed which can be done
-           through your package manager.
+           Graphviz must be installed on your system (e.g. ``brew install graphviz``
+           or ``apt install graphviz``). The ``torchview`` Python package is installed
+           automatically with pyMAISE.
 
         Parameters
         ----------
@@ -1118,7 +1075,7 @@ class PostProcessor:
         model_type: str or None, default=None
             The model name to get. Will get the best model predictions based on
             ``sort_by``.
-        sort_by: str or None, detault=None
+        sort_by: str or None, default=None
             The metric to sort the pandas.DataFrame from
             :meth:`pyMAISE.PostProcessor.metrics` by. If ``None`` then
             ``test r2_score`` is used for :attr:`pyMAISE.ProblemType.REGRESSION`
@@ -1128,11 +1085,17 @@ class PostProcessor:
             The direction to ``sort_by``. It is only required if ``sort_by`` is not
             a default metric.
         kwargs:
-            Any arguments related to `tensorflow.keras.utils.plot_model() \
-            <https://www.tensorflow.org/api_docs/python/tf/keras/utils/plot_model>`_
-            except ``model``.
+            Any keyword arguments forwarded to
+            `torchview.draw_graph \
+            <https://github.com/mert-kurttutan/torchview>`_
+            except ``model`` and ``input_size``.
+
+        Returns
+        -------
+        graph: torchview.ModelGraph
+            The model graph object. In a Jupyter notebook this renders inline;
+            call ``graph.visual_graph.render(filename)`` to save to a file.
         """
-        # Determine the index of the model in the DataFrame
         idx = self._get_idx(
             idx=idx,
             model_type=model_type,
@@ -1141,13 +1104,17 @@ class PostProcessor:
             nns_only=True,
         )
 
-        # Get keras model
-        model = self._models["Model Wrappers"][idx].build(
-            self._models["Parameter Configurations"][idx]
-        )
+        # Rebuild the skorch model from stored hyperparameters and initialize it
+        # (initialize() materializes module_ without requiring a full fit).
+        params = self._models["Parameter Configurations"][idx]
+        fixed_trial = optuna.trial.FixedTrial(params)
+        model = self._models["Model Wrappers"][idx].build(fixed_trial)
+        model.initialize()
 
-        # Run plotter
-        return tf.keras.utils.plot_model(model, **kwargs)
+        # Derive input shape from training data (drop the sample/batch dimension).
+        input_size = tuple(self._xtrain.shape[1:])
+
+        return draw_graph(model.module_, input_size=input_size, **kwargs)
 
     def confusion_matrix(
         self,

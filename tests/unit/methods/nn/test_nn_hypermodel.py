@@ -1,25 +1,29 @@
-import keras_tuner
-import tensorflow.keras as keras
+import pytest
+import torch.nn as nn
+import optuna
+from skorch import NeuralNetRegressor
 
-from pyMAISE import Int
-from pyMAISE.methods import nnHyperModel
 import pyMAISE as mai
+from pyMAISE import Choice, Int
+from pyMAISE.methods import nnHyperModel
+from pyMAISE.methods.nn._nn_hypermodel import _SequentialNet
+from pyMAISE.methods.nn._dense import _DenseBlock
 
 
 def test_fnn_build():
+    """build() returns an initialised NeuralNetRegressor with the correct
+    layer sequence, training params, and output size.
+    Keras-only params (kernel_initializer) must be silently ignored."""
     mai.init(problem_type="regression")
 
-    # Define feed forward neural network settings
     fnn_settings = {
         "structural_params": {
             "Dense_input": {
                 "units": Int(min_value=25, max_value=250),
                 "activation": "relu",
-                "kernel_initializer": "normal",
+                "kernel_initializer": "normal",  # Keras-only; silently dropped
                 "sublayer": "Dropout",
-                "Dropout": {
-                    "rate": 0.5,
-                },
+                "Dropout": {"rate": 0.5},
             },
             "Dense_hidden": {
                 "num_layers": 2,
@@ -34,13 +38,8 @@ def test_fnn_build():
             },
         },
         "optimizer": "Adam",
-        "Adam": {
-            "learning_rate": 0.0001,
-        },
-        "compile_params": {
-            "loss": "mean_absolute_error",
-            "metrics": ["mean_absolute_error"],
-        },
+        "Adam": {"learning_rate": 0.0001},
+        "compile_params": {"loss": "mean_absolute_error"},
         "fitting_params": {
             "batch_size": 16,
             "epochs": 50,
@@ -48,48 +47,116 @@ def test_fnn_build():
         },
     }
 
-    # Initialize model
-    pyMAISE_model = nnHyperModel(fnn_settings, input_shape=(6,), name="")
+    hypermodel = nnHyperModel(fnn_settings, input_shape=(6,), name="")
 
-    # Build Keras model
-    keras_model = pyMAISE_model.build(keras_tuner.HyperParameters())
+    # Pin every sampled hyperparameter to its minimum value.
+    search_space = hypermodel.get_search_space()
+    trial = optuna.trial.FixedTrial({k: v[0] for k, v in search_space.items()})
+    model = hypermodel.build(trial)
+    model.initialize()
 
-    # Check base structure
-    assert isinstance(keras_model.layers[0], keras.layers.Dense)
-    assert isinstance(keras_model.layers[1], keras.layers.Dropout)
-    assert isinstance(keras_model.layers[2], keras.layers.Dense)
-    assert isinstance(keras_model.layers[3], keras.layers.Dense)
-    assert isinstance(keras_model.layers[4], keras.layers.Dense)
+    assert isinstance(model, NeuralNetRegressor)
+    assert isinstance(model.module_, _SequentialNet)
 
-    # Check hyperparameters of Dense_input
-    dense_input = keras_model.layers[0].get_config()
-    assert dense_input["name"] == "Dense_input_0"
-    assert dense_input["units"] >= 25 and dense_input["units"] <= 250
-    assert dense_input["activation"] == "relu"
-    assert dense_input["kernel_initializer"]["class_name"] == "RandomNormal"
+    # Expected sequence:
+    #   Dense_input_0  (_DenseBlock: Linear + ReLU)
+    #   Dropout sublayer
+    #   Dense_hidden_0 (_DenseBlock)
+    #   Dense_hidden_1 (_DenseBlock)
+    #   Dense_output_0 (_DenseBlock: Linear + Identity)
+    children = list(model.module_.net.children())
+    assert len(children) == 5
+    assert isinstance(children[0], _DenseBlock)
+    assert isinstance(children[1], nn.Dropout)
+    assert isinstance(children[2], _DenseBlock)
+    assert isinstance(children[3], _DenseBlock)
+    assert isinstance(children[4], _DenseBlock)
 
-    # Check hyperparameters of Dropout sublayer
-    dense_input_dropout_sublayer = keras_model.layers[1].get_config()
-    assert dense_input_dropout_sublayer["name"] == "Dense_input_0_sublayer_Dropout_0"
-    assert dense_input_dropout_sublayer["rate"] == 0.5
+    assert 25 <= children[0].linear.out_features <= 250  # Dense_input units in range
+    assert children[4].linear.out_features == 22         # Dense_output fixed at 22
+    assert children[1].p == 0.5                          # Dropout rate
 
-    # Check hyperparameters of Dense_hidden_0
-    dense_hidden_0 = keras_model.layers[2].get_config()
-    assert dense_hidden_0["name"] == "Dense_hidden_0"
-    assert dense_hidden_0["units"] >= 25 and dense_hidden_0["units"] <= 250
-    assert dense_hidden_0["activation"] == "relu"
-    assert dense_hidden_0["kernel_initializer"]["class_name"] == "RandomNormal"
+    assert model.max_epochs == 50
+    assert model.batch_size == 16
 
-    # Check hyperparameters of Dense_hidden_1
-    dense_hidden_1 = keras_model.layers[3].get_config()
-    assert dense_hidden_1["name"] == "Dense_hidden_1"
-    assert dense_hidden_1["units"] >= 25 and dense_hidden_1["units"] <= 250
-    assert dense_hidden_1["activation"] == "relu"
-    assert dense_hidden_1["kernel_initializer"]["class_name"] == "RandomNormal"
 
-    # Check hyperparameters of Dense_output
-    dense_output = keras_model.layers[4].get_config()
-    assert dense_output["name"] == "Dense_output_0"
-    assert dense_output["units"] == 22
-    assert dense_output["activation"] == "linear"
-    assert dense_output["kernel_initializer"]["class_name"] == "RandomNormal"
+def test_classifier_build():
+    """build() returns NeuralNetRegressor even for classification losses
+    so that predict() returns probabilities, not class indices."""
+    mai.init(problem_type="classification")
+
+    settings = {
+        "structural_params": {
+            "Dense_hidden": {"units": 32, "activation": "relu"},
+            "Dense_output": {"units": 10, "activation": "softmax"},
+        },
+        "optimizer": "Adam",
+        "Adam": {"learning_rate": 0.001},
+        "compile_params": {"loss": "categorical_crossentropy"},
+        "fitting_params": {"batch_size": 32, "epochs": 5},
+    }
+    hypermodel = nnHyperModel(settings, input_shape=(64,), name="")
+    trial = optuna.trial.FixedTrial({})
+    model = hypermodel.build(trial)
+    model.initialize()
+
+    assert isinstance(model, NeuralNetRegressor)
+    children = list(model.module_.net.children())
+    assert len(children) == 2
+    assert children[-1].linear.out_features == 10
+
+
+def test_missing_epochs_raises():
+    """Omitting epochs from fitting_params must raise RuntimeError."""
+    mai.init(problem_type="regression")
+    settings = {
+        "structural_params": {"Dense_out": {"units": 1}},
+        "optimizer": "Adam",
+        "Adam": {"learning_rate": 0.001},
+        "compile_params": {"loss": "mse"},
+        "fitting_params": {"batch_size": 32},
+    }
+    hypermodel = nnHyperModel(settings, input_shape=(4,), name="")
+    with pytest.raises(RuntimeError, match="epochs"):
+        hypermodel.build(optuna.trial.FixedTrial({}))
+
+
+def test_callbacks_warning():
+    """Passing callbacks in fitting_params must emit a UserWarning."""
+    mai.init(problem_type="regression")
+    settings = {
+        "structural_params": {"Dense_out": {"units": 1}},
+        "optimizer": "Adam",
+        "Adam": {"learning_rate": 0.001},
+        "compile_params": {"loss": "mse"},
+        "fitting_params": {"batch_size": 32, "epochs": 5, "callbacks": [object()]},
+    }
+    hypermodel = nnHyperModel(settings, input_shape=(4,), name="")
+    with pytest.warns(UserWarning, match="callbacks"):
+        hypermodel.build(optuna.trial.FixedTrial({}))
+
+
+def test_get_search_space():
+    """get_search_space() returns a dict mapping each sampled param name to
+    its list of valid values, without requiring a live Optuna study."""
+    mai.init(problem_type="regression")
+    settings = {
+        "structural_params": {
+            "Dense_hidden": {
+                "units": Choice([32, 64, 128]),
+                "activation": "relu",
+            },
+            "Dense_output": {"units": 4, "activation": "linear"},
+        },
+        "optimizer": "Adam",
+        "Adam": {"learning_rate": Choice([0.001, 0.0001])},
+        "compile_params": {"loss": "mse"},
+        "fitting_params": {"batch_size": 32, "epochs": 10},
+    }
+    hypermodel = nnHyperModel(settings, input_shape=(8,), name="")
+    space = hypermodel.get_search_space()
+
+    assert "Dense_hidden_0_units" in space
+    assert space["Dense_hidden_0_units"] == [32, 64, 128]
+    assert "Adam_learning_rate" in space
+    assert space["Adam_learning_rate"] == [0.001, 0.0001]

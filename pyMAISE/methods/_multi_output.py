@@ -1,20 +1,19 @@
 import pyMAISE.settings as settings
-from sklearn.multioutput import MultiOutputRegressor, MultiOutputClassifier
-from pyMAISE.methods import (
-    SVM,
-    DecisionTree,
-    KNeighbors,
-    LassoRegression,
-    LinearRegression,
-    LogisticRegression,
-    RandomForest,
-    GaussianProcess,
-    RidgeRegression,
-    GradientBoosting,
-    ElasticNet,
-    AdaBoost,
-    ExtraTrees,
-)
+from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
+
+from pyMAISE.methods._adaboost import AdaBoost
+from pyMAISE.methods._dtree import DecisionTree
+from pyMAISE.methods._elastic import ElasticNet
+from pyMAISE.methods._extra_trees import ExtraTrees
+from pyMAISE.methods._gaussian_process import GaussianProcess
+from pyMAISE.methods._gradient_boosting import GradientBoosting
+from pyMAISE.methods._kneighbors import KNeighbors
+from pyMAISE.methods._lasso import LassoRegression
+from pyMAISE.methods._linear import LinearRegression
+from pyMAISE.methods._logistic_regression import LogisticRegression
+from pyMAISE.methods._rforest import RandomForest
+from pyMAISE.methods._ridge import RidgeRegression
+from pyMAISE.methods._svm import SVM
 
 
 class MultiOutput:

@@ -1,16 +1,12 @@
 import copy
 import time
+import warnings
 
-import keras_tuner as kt
 import matplotlib.pyplot as plt
 import numpy as np
+import optuna
 import pandas as pd
-from keras_tuner.oracles import (
-    BayesianOptimizationOracle,
-    GridSearchOracle,
-    HyperbandOracle,
-    RandomSearchOracle,
-)
+from optuna.samplers import GridSampler, RandomSampler, TPESampler
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -22,6 +18,12 @@ from sklearn.metrics import (
     recall_score,
 )
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+
+# scikit-optimize 0.9.0 uses np.int which was removed in numpy 1.24.
+# Patch before importing skopt so users aren't hit by the AttributeError.
+if not hasattr(np, "int"):
+    np.int = int  # type: ignore[attr-defined]
+
 from skopt import BayesSearchCV
 
 import pyMAISE.settings as settings
@@ -32,7 +34,6 @@ from pyMAISE.methods import (
     LassoRegression,
     LinearRegression,
     LogisticRegression,
-    NeuralNetsRegression,
     RandomForest,
     nnHyperModel,
     GaussianProcess,
@@ -108,49 +109,54 @@ class Tuner:
         and `classifier <https://scikit-learn.org/stable/modules/generated/\
         sklearn.multioutput.MultiOutputClassifier.html>`_.
 
-    from :cite:`scikit-learn` and `sequential neural networks \
-    <https://keras.io/guides/sequential_model/>`_ from :cite:`chollet2015keras`.
+    from :cite:`scikit-learn` and sequential neural networks built with PyTorch
+    :cite:`pytorch`.
 
     .. _layersAndOptimizers:
     .. rubric:: Supported Neural Network Layers and Optimizers
 
-    pyMAISE supports the following neural network layers using
-    :cite:`chollet2015keras`:
+    pyMAISE supports the following neural network layers via PyTorch:
 
-    - ``Dense``: `dense <https://keras.io/api/layers/core_layers/dense/>`_,
-    - ``Dropout``: `dropout <https://keras.io/api/layers/\
-      regularization_layers/dropout/>`_,
-    - ``LSTM``: `LSTM <https://keras.io/api/layers/recurrent_layers/lstm/>`_,
-    - ``GRU``: `GRU <https://keras.io/api/layers/recurrent_layers/gru/>`_,
-    - ``Conv1D``: `1D convolution <https://keras.io/api/layers/\
-      convolution_layers/convolution1d/>`_,
-    - ``Conv2D``: `2D convolution <https://keras.io/api/layers/\
-      convolution_layers/convolution2d/>`_,
-    - ``Conv3D``: `3D convolution <https://keras.io/api/layers/\
-      convolution_layers/convolution3d/>`_,
+    - ``Dense``: `linear <https://pytorch.org/docs/stable/generated/\
+      torch.nn.Linear.html>`_,
+    - ``Dropout``: `dropout <https://pytorch.org/docs/stable/generated/\
+      torch.nn.Dropout.html>`_,
+    - ``LSTM``: `LSTM <https://pytorch.org/docs/stable/generated/\
+      torch.nn.LSTM.html>`_,
+    - ``GRU``: `GRU <https://pytorch.org/docs/stable/generated/\
+      torch.nn.GRU.html>`_,
+    - ``Conv1D``: `1D convolution <https://pytorch.org/docs/stable/generated/\
+      torch.nn.Conv1d.html>`_,
+    - ``Conv2D``: `2D convolution <https://pytorch.org/docs/stable/generated/\
+      torch.nn.Conv2d.html>`_,
+    - ``Conv3D``: `3D convolution <https://pytorch.org/docs/stable/generated/\
+      torch.nn.Conv3d.html>`_,
     - ``MaxPooling1D``: `max pooling for 1D temporal data \
-      <https://keras.io/api/layers/pooling_layers/max_pooling1d/>`_,
-    - ``MaxPooling2D``: `max pooling for 2D temporal data \
-      <https://keras.io/api/layers/pooling_layers/max_pooling2d/>`_,
-    - ``MaxPooling3D``: `max pooling for 3D temporal data \
-      <https://keras.io/api/layers/pooling_layers/max_pooling3d/>`_,
-    - ``Flatten``: `flatten <https://keras.io/api/layers/\
-      reshaping_layers/flatten/>`_,
-    - ``Reshape``: `reshape <https://keras.io/api/layers/\
-      reshaping_layers/reshape/>`_,
+      <https://pytorch.org/docs/stable/generated/torch.nn.MaxPool1d.html>`_,
+    - ``MaxPooling2D``: `max pooling for 2D spatial data \
+      <https://pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html>`_,
+    - ``MaxPooling3D``: `max pooling for 3D volumetric data \
+      <https://pytorch.org/docs/stable/generated/torch.nn.MaxPool3d.html>`_,
+    - ``Flatten``: `flatten <https://pytorch.org/docs/stable/generated/\
+      torch.nn.Flatten.html>`_,
+    - ``Reshape``: reshape to a fixed target shape,
 
     and the following optimizers:
 
-    - ``SGD``: `gradient descent <https://keras.io/api/optimizers/sgd/>`_,
-    - ``RMSprop``: `RMSprop <https://keras.io/api/optimizers/rmsprop/>`_,
-    - ``Adam``: `Adam <https://keras.io/api/optimizers/adam/>`_,
-    - ``AdamW``: `AdamW <https://keras.io/api/optimizers/adamw/>`_,
-    - ``Adadelta``: `Adadelta <https://keras.io/api/optimizers/adadelta/>`_,
-    - ``Adagrad``: `Adagrad <https://keras.io/api/optimizers/adagrad/>`_,
-    - ``Adamax``: `Adamax <https://keras.io/api/optimizers/adamax/>`_,
-    - ``Adafactor``: `Adafactor <https://keras.io/api/optimizers/adafactor/>`_,
-    - ``Nadam``: `Nadam <https://keras.io/api/optimizers/Nadam/>`_,
-    - ``Ftrl``: `FTRL <https://keras.io/api/optimizers/ftrl/>`_.
+    - ``SGD``: `gradient descent <https://pytorch.org/docs/stable/generated/\
+      torch.optim.SGD.html>`_,
+    - ``RMSprop``: `RMSprop <https://pytorch.org/docs/stable/generated/\
+      torch.optim.RMSprop.html>`_,
+    - ``Adam``: `Adam <https://pytorch.org/docs/stable/generated/\
+      torch.optim.Adam.html>`_,
+    - ``AdamW``: `AdamW <https://pytorch.org/docs/stable/generated/\
+      torch.optim.AdamW.html>`_,
+    - ``Adadelta``: `Adadelta <https://pytorch.org/docs/stable/generated/\
+      torch.optim.Adadelta.html>`_,
+    - ``Adagrad``: `Adagrad <https://pytorch.org/docs/stable/generated/\
+      torch.optim.Adagrad.html>`_,
+    - ``Adamax``: `Adamax <https://pytorch.org/docs/stable/generated/\
+      torch.optim.Adamax.html>`_.
 
     .. note:: For additional layer or optimizer support, submit a detailed issue at the
         `pyMAISE GitHub repository <https://github.com/aims-umich/pyMAISE>`_ outlining the
@@ -174,14 +180,13 @@ class Tuner:
         remain constant throughout the hyperparameter tuning process. This is done by
         assigning a sub-dictionary under the key of the model's name.
 
-        For neural network models :cite:`chollet2015keras`, this dictionary specifies
-        both hyperparameters that remain constant throughout tuning and the tuning
-        space using :class:`pyMAISE.Int`, :class:`pyMAISE.Float`,
-        :class:`pyMAISE.Choice`, :class:`pyMAISE.Boolean`, and :class:`pyMAISE.Fixed`.
-        This is done in the same way as classical models, where hyperparameters and
-        their values are specified in sub-dictionaries under their model's key. In
-        addition, number of layers, optimizers, wrappers, and sublayers can be
-        specified.
+        For neural network models, this dictionary specifies both hyperparameters
+        that remain constant throughout tuning and the tuning space using
+        :class:`pyMAISE.Int`, :class:`pyMAISE.Float`, :class:`pyMAISE.Choice`,
+        :class:`pyMAISE.Boolean`, and :class:`pyMAISE.Fixed`. This is done in
+        the same way as classical models, where hyperparameters and their values
+        are specified in sub-dictionaries under their model's key. In addition,
+        number of layers, optimizers, and sublayers can be specified.
 
 
     .. warning::
@@ -213,47 +218,22 @@ class Tuner:
     a random forest model with all default hyperparameters except for 150 estimators.
 
     Given 3D input and 2D output time series data (``xtrain``, ``ytrain``) from
-    :class:`pyMAISE.preprocessing.SplitSequence`, we can define a CNN-LSTM.
+    :class:`pyMAISE.preprocessing.SplitSequence`, we can define a stacked LSTM
+    network.
 
     .. code-block:: python
 
         import pyMAISE as mai
-        from tensorflow.keras.layers import TimeDistributed
-        from tensorflow.keras.callbacks import ReduceLROnPlateau
 
-        cnn_lstm_structure = {
-            "Reshape_input": {
-                "target_shape": (2, 2, xtrain.shape[-1])
-            },
-            "Conv1D": {
-                "filters": mai.Int(min_value=50, max_value=150),
-                "kernel_size": 1,
-                "activation": "relu",
-                "wrapper": (
-                    TimeDistributed, {
-                        "input_shape": (None, 2, xtrain.shape[-1])
-                    },
-                ),
-            },
-            "MaxPooling1D": {
-                "pool_size": 2,
-                "wrapper": TimeDistributed,
-            },
-            "Flatten": {
-                "wrapper": TimeDistributed,
-            },
+        lstm_structure = {
             "LSTM": {
-                "num_layers": mai.Int(min_value=0, max_value=3),
+                "num_layers": mai.Int(min_value=1, max_value=3),
                 "units": mai.Int(min_value=20, max_value=100),
-                "activation": "tanh",
-                "recurrent_activation": "sigmoid",
-                "recurrent_dropout": mai.Choice([0.0, 0.2, 0.4, 0.6]),
+                "dropout": mai.Choice([0.0, 0.2, 0.4]),
                 "return_sequences": True,
             },
             "LSTM_output": {
                 "units": mai.Int(min_value=20, max_value=100),
-                "activation": "tanh",
-                "recurrent_activation": "sigmoid",
             },
             "Dense": {
                 "units": ytrain.shape[-1],
@@ -263,20 +243,7 @@ class Tuner:
         fitting = {
             "batch_size": 512,
             "epochs": 5,
-            "validation_split":0.15,
-            "callbacks": [
-                ReduceLROnPlateau(
-                    monitor='val_mean_absolute_error',
-                    factor=0.8,
-                    patience=2,
-                    min_lr=0,
-                    verbose=1,
-                ),
-                EarlyStopping(
-                    monitor="val_mean_absolute_error",
-                    patience=3,
-                )
-            ]
+            "validation_split": 0.15,
         }
         adam = {
             "learning_rate": mai.Float(min_value=0.00001, max_value=0.001),
@@ -285,13 +252,12 @@ class Tuner:
         }
         compiling = {
             "loss": "mean_absolute_error",
-            "metrics": ["mean_absolute_error"],
         }
 
         model_settings = {
-            "models": ["CNN-LSTM"],
-            "CNN-LSTM": {
-                "structural_params": cnn_lstm_structure,
+            "models": ["LSTM-Net"],
+            "LSTM-Net": {
+                "structural_params": lstm_structure,
                 "optimizer": "Adam",
                 "Adam": adam,
                 "compile_params": compiling,
@@ -300,20 +266,19 @@ class Tuner:
         }
         tuner = mai.Tuner(xtrain, ytrain, model_settings=model_settings)
 
-    We see that we defined a neural network with 7 layers with the following
-    tuning space:
+    We see that we defined a stacked LSTM network with the following tuning space:
 
-    - 1D convolutional layer filters,
-    - hidden LSTM number of layers,
+    - number of hidden LSTM layers,
     - hidden LSTM units,
-    - hidden LSTM recurrent dropout,
+    - hidden LSTM dropout,
     - output LSTM units,
     - Adam learning rate,
     - Adam clipnorm,
     - Adam clipvalue.
 
-    Additionally, the ``Conv1D``, ``MaxPooling1D``, and ``Flatten`` layers use the
-    ``keras.layers.TimeDistributed`` wrapper to accommodate the temporal dimension.
+    The ``LSTM`` entry defines the hidden layers (``num_layers`` controls how many
+    are stacked with ``return_sequences=True``), and ``LSTM_output`` defines the
+    final LSTM that collapses the sequence before the ``Dense`` output layer.
     """
 
     #: dict of pyMAISE.methods: Dictionary of supported models.
@@ -357,15 +322,9 @@ class Tuner:
                 self._models[model] = copy.deepcopy(
                     self.supported_classical_models[model]
                 )(parameters=parameters)
-            elif settings.values.new_nn_architecture:
-                self._models[model] = copy.deepcopy(
-                    nnHyperModel
-                    if settings.values.new_nn_architecture
-                    else NeuralNetsRegression
-                )(parameters=parameters, input_shape=self._xtrain.shape[1:], name=model)
             else:
-                self._models[model] = copy.deepcopy(NeuralNetsRegression)(
-                    parameters=parameters
+                self._models[model] = copy.deepcopy(nnHyperModel)(
+                    parameters=parameters, input_shape=self._xtrain.shape[1:], name=model
                 )
 
     # ===========================================================
@@ -615,10 +574,7 @@ class Tuner:
         if models is None:
             models = list(self._models.keys())
         models = [
-            model
-            for model in models
-            if self.supported_classical_models.__contains__(model)
-            or settings.values.new_nn_architecture is False
+            model for model in models if model in self.supported_classical_models
         ]
 
         # Reshape if there is one feature
@@ -679,377 +635,250 @@ class Tuner:
         self,
         models=None,
         objective=None,
-        max_trials=None,
-        hyperparameters=None,
-        allow_new_entries=True,
-        tune_new_entries=True,
-        max_retries_per_trial=0,
-        max_consecutive_failed_trials=1,
-        overwrite=True,
-        directory="./",
-        project_name="best_hp",
         cv=5,
         shuffle=False,
     ):
         """
-        Grid search for neural networks. This function uses
-        `keras_tuner.oracles.GridSearchOracle <https://keras.io/api/keras_tuner/\
-        oracles/grid/>`_ with :class:`pyMAISE.CVTuner` for cross validation.
-        Iterate over the defined search space and return the top models for each
-        model type.
+        Grid search for neural networks using Optuna's ``GridSampler``.
+
+        Exhaustively evaluates every combination of hyperparameter values
+        defined in the model's search space.  The number of trials is computed
+        automatically from the search space so no ``max_trials`` argument is
+        needed.
 
         Parameters
         ----------
-        models: list of string or None, default=None
-            The names of the neural network models for grid search. If ``None``, then
-            all neural networks are fit with grid search.
-        objective: str or keras_tuner.Objective, default=None
-            The objective of the search. If the objective is a ``str`` of a
-            sklearn.metrics, then that is used as the objective. Otherwise, the
-            built-in objectives within KerasTuner are used.
+        models: list of str or None, default=None
+            Neural network model names to tune. ``None`` tunes all NN models.
+        objective: str or None, default=None
+            Name of an sklearn metrics function (e.g. ``"r2_score"``,
+            ``"mean_squared_error"``). ``None`` uses the default scoring
+            (MSE for regression, error rate for classification).
         cv: int or cross-validation generator, default=5
-            If an ``int``, then either
-            `sklearn.model_selection.StratifiedKFold <https://scikit-learn.org/\
-            stable/modules/generated/sklearn.model_selection.StratifiedKFold.html>`_
-            or `sklearn.model_selection.KFold <https://scikit-learn.org/stable/\
-            modules/generated/sklearn.model_selection.KFold.html>`_ are used depending
-            on the ``pyMAISE.Settings.problem_type`` and output data type. If the
-            problem is a classification problem and the output data is either binary or
-            multiclass, then sklearn.model_selection.StratifiedKFold is used.
+            Number of folds or a pre-configured sklearn CV splitter.
         shuffle: bool, default=False
-            Whether to shuffle the data before cross-validation split.
-
-
-        .. note::
-            For information on ``max_trials``, ``hyperparameters``,
-            ``allow_new_entries``,
-            ``tune_new_entries``, ``max_consecutive_failed_trials``, ``overwrite``,
-            ``directory``, and ``project_name`` refer to the
-            `KerasTuner documentation \
-            <https://keras.io/api/keras_tuner/oracles/grid/>`_.
+            Whether to shuffle data before splitting.
 
         Returns
         -------
-        data: dict of tuple(pd.DataFrame, model object)
-            The hyperparameters and models for the top
-            ``pyMAISE.Settings.num_configs_saved``
-            for each model. If fewer configurations are provided, than
-            ``pyMAISE.Settings.num_configs_saved`` then all are taken.
+        data: dict of tuple(pd.DataFrame, nnHyperModel)
+            Top ``pyMAISE.Settings.num_configs_saved`` configurations per model.
         """
         print("Hyperparameter tuning neural networks with grid search")
 
-        kt_objective = self._determine_kt_objective(objective)
-        oracle = GridSearchOracle(
-            objective=kt_objective[0],
-            max_trials=max_trials,
-            seed=settings.values.random_state,
-            hyperparameters=hyperparameters,
-            tune_new_entries=tune_new_entries,
-            allow_new_entries=allow_new_entries,
-            max_retries_per_trial=max_retries_per_trial,
-            max_consecutive_failed_trials=max_consecutive_failed_trials,
-        )
+        direction, metrics = self._determine_objective(objective)
+
+        def sampler_factory(hypermodel):
+            space = hypermodel.get_search_space()
+            return GridSampler(space, seed=settings.values.random_state)
+
+        def n_trials_factory(hypermodel):
+            space = hypermodel.get_search_space()
+            n = 1
+            for values in space.values():
+                n *= len(values)
+            return n
+
         return self._nn_tuning(
             models=models,
-            objective=objective,
+            direction=direction,
             cv=cv,
             shuffle=shuffle,
-            oracle=oracle,
-            metrics=kt_objective[1],
-            overwrite=overwrite,
-            directory=directory,
-            project_name=project_name,
+            sampler_factory=sampler_factory,
+            n_trials_factory=n_trials_factory,
+            metrics=metrics,
         )
 
     def nn_random_search(
         self,
         models=None,
         objective=None,
-        max_trials=10,
-        hyperparameters=None,
-        allow_new_entries=True,
-        tune_new_entries=True,
-        max_retries_per_trial=0,
-        max_consecutive_failed_trials=1,
-        overwrite=True,
-        directory="./",
-        project_name="best_hp",
+        n_trials=10,
         cv=5,
         shuffle=False,
     ):
         """
-        Random search for neural networks. This function uses
-        `keras_tuner.oracles.RandomSearchOracle <https://keras.io/api/\
-        keras_tuner/oracles/random/>`_ with :class:`pyMIASE.CVTuner` for cross
-        validation. Sample the defined search space based on a random distribution
-        for each model type.
+        Random search for neural networks using Optuna's ``RandomSampler``.
+
+        Samples ``n_trials`` hyperparameter configurations uniformly at random
+        from the search space.
 
         Parameters
         ----------
-        models: list of string or None, default=None
-            The names of the neural network models for random search. If ``None``, then
-            all neural networks are fit with random search.
-        objective: str or keras_tuner.Objective, default=None
-            The objective of the search. If the objective is a ``str`` of a
-            sklearn.metrics, then that is used as the objective. Otherwise, the
-            built-in objectives within KerasTuner are used.
+        models: list of str or None, default=None
+            Neural network model names to tune. ``None`` tunes all NN models.
+        objective: str or None, default=None
+            Name of an sklearn metrics function (e.g. ``"r2_score"``,
+            ``"mean_squared_error"``). ``None`` uses the default scoring.
+        n_trials: int, default=10
+            Number of random configurations to evaluate.
         cv: int or cross-validation generator, default=5
-            If an ``int``, then either
-            `sklearn.model_selection.StratifiedKFold <https://scikit-learn.org/\
-            stable/modules/generated/sklearn.model_selection.StratifiedKFold.html>`_
-            or `sklearn.model_selection.KFold <https://scikit-learn.org/stable/\
-            modules/generated/sklearn.model_selection.KFold.html>`_ are used depending
-            on the ``pyMAISE.Settings.problem_type`` and output data type. If the
-            problem is a classification problem and the output data is either binary or
-            multiclass, then sklearn.model_selection.StratifiedKFold is used.
+            Number of folds or a pre-configured sklearn CV splitter.
         shuffle: bool, default=False
-            Whether to shuffle the data before cross-validation split.
-
-
-        .. note::
-            For information on ``max_trials``, ``hyperparameters``,
-            ``allow_new_entries``,
-            ``tune_new_entries``, ``max_retries_per_trial``,
-            ``max_consecutive_failed_trials``,
-            ``overwrite``, ``directory``, and ``project_name`` refer to `KerasTuner\
-             documentation <https://keras.io/api/keras_tuner/oracles/random/>`_.
+            Whether to shuffle data before splitting.
 
         Returns
         -------
-        data: dict of tuple(pd.DataFrame, model object)
-            The hyperparameters and models for the top
-            ``pyMAISE.Settings.num_configs_saved``
-            for each model. If fewer configurations are provided, than
-            ``pyMAISE.Settings.num_configs_saved`` then all are taken.
+        data: dict of tuple(pd.DataFrame, nnHyperModel)
+            Top ``pyMAISE.Settings.num_configs_saved`` configurations per model.
         """
         print("Hyperparameter tuning neural networks with random search")
 
-        kt_objective = self._determine_kt_objective(objective)
-        oracle = RandomSearchOracle(
-            objective=kt_objective[0],
-            max_trials=max_trials,
-            seed=settings.values.random_state,
-            hyperparameters=hyperparameters,
-            tune_new_entries=tune_new_entries,
-            allow_new_entries=allow_new_entries,
-            max_retries_per_trial=max_retries_per_trial,
-            max_consecutive_failed_trials=max_consecutive_failed_trials,
-        )
+        direction, metrics = self._determine_objective(objective)
+
         return self._nn_tuning(
             models=models,
-            objective=objective,
+            direction=direction,
             cv=cv,
             shuffle=shuffle,
-            oracle=oracle,
-            metrics=kt_objective[1],
-            overwrite=overwrite,
-            directory=directory,
-            project_name=project_name,
+            sampler_factory=lambda _: RandomSampler(seed=settings.values.random_state),
+            n_trials_factory=lambda _: n_trials,
+            metrics=metrics,
         )
 
     def nn_bayesian_search(
         self,
         models=None,
         objective=None,
-        max_trials=10,
-        num_initial_points=None,
-        alpha=0.0001,
-        beta=2.6,
-        hyperparameters=None,
-        tune_new_entries=True,
-        allow_new_entries=True,
-        max_retries_per_trial=0,
-        max_consecutive_failed_trials=1,
-        overwrite=True,
-        directory="./",
-        project_name="best_hp",
+        n_trials=10,
+        n_startup_trials=10,
         cv=5,
         shuffle=False,
     ):
         """
-        Bayesian search for neural networks. This function uses
-        `keras_tuner.oracles.BayesianOptimizationOracle \
-        <https://keras.io/api/keras_tuner/oracles/bayesian/>`_ with
-        :class:`pyMAISE.CVTuner`
-        for cross-validation. Iterate over sampled hyperparameter space using
-        Bayesian optimization and return the top models for each model type.
+        Bayesian optimization search for neural networks using Optuna's ``TPESampler``.
+
+        Tree-structured Parzen Estimator (TPE) builds a probabilistic model of
+        the objective function and samples configurations likely to improve it.
+        It starts with ``n_startup_trials`` random evaluations to seed the model,
+        then switches to guided sampling.
 
         Parameters
         ----------
-        models: list of string or None, default=None
-            The names of the neural network models for Bayesian search. If ``None``,
-            then all neural networks are fit with Bayesian search.
-        objective: str or keras_tuner.Objective, default=None
-            The objective of the search. If the objective is a ``str`` of a
-            sklearn.metrics, then that is used as the objective. Otherwise the
-            builtin objectives within KerasTuner are used.
+        models: list of str or None, default=None
+            Neural network model names to tune. ``None`` tunes all NN models.
+        objective: str or None, default=None
+            Name of an sklearn metrics function (e.g. ``"r2_score"``,
+            ``"mean_squared_error"``). ``None`` uses the default scoring.
+        n_trials: int, default=10
+            Total number of configurations to evaluate.
+        n_startup_trials: int, default=10
+            Number of random trials before TPE begins guided sampling.
         cv: int or cross-validation generator, default=5
-            If an ``int`` then either
-            `sklearn.model_selection.StratifiedKFold <https://scikit-learn.org/\
-            stable/modules/generated/sklearn.model_selection.StratifiedKFold.html>`_
-            or `sklearn.model_selection.KFold <https://scikit-learn.org/stable/\
-            modules/generated/sklearn.model_selection.KFold.html>`_
-            are used depending on
-            the ``pyMAISE.Settings.problem_type`` and output data type. If the problem
-            is a classification problem and the output data is either binary or
-            multiclass, then sklearn.model_selection.StratifiedKFold is used.
+            Number of folds or a pre-configured sklearn CV splitter.
         shuffle: bool, default=False
-            Whether to shuffle the data before cross-validation split.
-
-
-        .. note::
-            For information on ``max_trials``, ``num_initial_points``,
-            ``alpha``, ``beta``,
-            ``hyperparameters``, ``tune_new_entries``, ``max_retries_per_trial``,
-            ``max_consecutive_failed_trials``, ``overwrite``, ``directory``,
-            and ``project_name`` refer to `KerasTuner documentation
-            <https://keras.io/api/keras_tuner/oracles/bayesian/>`_.
+            Whether to shuffle data before splitting.
 
         Returns
         -------
-        data: dict of tuple(pd.DataFrame, model object)
-            The hyperparameters and models for the top
-            ``pyMAISE.Settings.num_configs_saved``
-            for each model. If fewer configurations are provided, than
-            ``pyMAISE.Settings.num_configs_saved`` then all are taken.
+        data: dict of tuple(pd.DataFrame, nnHyperModel)
+            Top ``pyMAISE.Settings.num_configs_saved`` configurations per model.
         """
-        print("Hyperparameter tuning neural networks with bayesian search")
+        print("Hyperparameter tuning neural networks with Bayesian search (TPE)")
 
-        kt_objective = self._determine_kt_objective(objective)
-        oracle = BayesianOptimizationOracle(
-            objective=kt_objective[0],
-            max_trials=max_trials,
-            num_initial_points=num_initial_points,
-            alpha=alpha,
-            beta=beta,
-            seed=settings.values.random_state,
-            hyperparameters=hyperparameters,
-            tune_new_entries=tune_new_entries,
-            allow_new_entries=allow_new_entries,
-            max_retries_per_trial=max_retries_per_trial,
-            max_consecutive_failed_trials=max_consecutive_failed_trials,
-        )
+        direction, metrics = self._determine_objective(objective)
+
         return self._nn_tuning(
             models=models,
-            objective=objective,
+            direction=direction,
             cv=cv,
             shuffle=shuffle,
-            oracle=oracle,
-            metrics=kt_objective[1],
-            overwrite=overwrite,
-            directory=directory,
-            project_name=project_name,
+            sampler_factory=lambda _: TPESampler(
+                n_startup_trials=n_startup_trials,
+                seed=settings.values.random_state,
+            ),
+            n_trials_factory=lambda _: n_trials,
+            metrics=metrics,
         )
 
     def nn_hyperband_search(
         self,
         models=None,
         objective=None,
-        max_epochs=100,
-        factor=3,
-        hyperband_iterations=1,
-        hyperparameters=None,
-        tune_new_entries=True,
-        allow_new_entries=True,
-        max_retries_per_trial=0,
-        max_consecutive_failed_trials=3,
-        overwrite=True,
-        directory="./",
-        project_name="best_hp",
+        n_trials=10,
         cv=5,
         shuffle=False,
     ):
         """
-        Hyperband search for neural networks. This function uses
-        `keras_tuner.oracles.HyperbandOracle <https://keras.io/api/\
-        keras_tuner/oracles/hyperband/#hyperbandoracle-class>`_ with
-        :class:`pyMAISE.CVTuner`
-        for cross validation.
+        Hyperband-style search for neural networks.
+
+        .. note::
+            True Hyperband prunes unpromising trials mid-training by hooking into
+            epoch-level reporting.  That requires skorch callback integration not yet
+            implemented in this backend, so this method currently uses
+            ``TPESampler`` (the same sampler as :meth:`nn_bayesian_search`) and
+            evaluates each trial to completion.  It is provided for API compatibility
+            and will be upgraded to full Hyperband pruning in a future release.
 
         Parameters
         ----------
-        models: list of string or None, default=None
-            The names of the neural network models for grid search. If ``None``, then
-            all neural networks are fit with grid search.
-        objective: str or keras_tuner.Objective, default=None
-            The objective of the search. If the objective is a ``str`` of a
-            sklearn.metrics then that is used as the objective. Otherwise the
-            builtin objectives within KerasTuner are used.
+        models: list of str or None, default=None
+            Neural network model names to tune. ``None`` tunes all NN models.
+        objective: str or None, default=None
+            Name of an sklearn metrics function (e.g. ``"r2_score"``,
+            ``"mean_squared_error"``). ``None`` uses the default scoring.
+        n_trials: int, default=10
+            Number of configurations to evaluate.
         cv: int or cross-validation generator, default=5
-            If an ``int``, then either
-            `sklearn.model_selection.StratifiedKFold <https://scikit-learn.org/\
-            stable/modules/generated/sklearn.model_selection.StratifiedKFold.html>`_
-            or `sklearn.model_selection.KFold <https://scikit-learn.org/stable/\
-            modules/generated/sklearn.model_selection.KFold.html>`_ are used
-            depending on
-            the ``pyMAISE.Settings.problem_type`` and output data type. If the problem
-            is a classification problem and the output data is either binary or
-            multiclass then sklearn.model_selection.StratifiedKFold is used.
+            Number of folds or a pre-configured sklearn CV splitter.
         shuffle: bool, default=False
-            Whether to shuffle the data before cross-validation split.
-
-
-        .. note::
-            For information on ``max_epochs``, ``factor``, ``hyperband_iterations``,
-            ``hyperparameters``, ``tune_new_entries``, ``allow_new_entries``,
-            ``max_retries_per_trial``, ``max_consecutive_failed_trials``,
-            ``overwrite``, ``directory``, and ``project_name`` refer to
-            `KerasTuner documentation <https://keras.io/api/keras_tuner/oracles/\
-            hyperband/#hyperbandoracle-class>`_.
+            Whether to shuffle data before splitting.
 
         Returns
         -------
-        data: dict of tuple(pd.DataFrame, model object)
-            The hyperparameters and models for the top
-            ``pyMAISE.Settings.num_configs_saved``
-            for each model. If fewer configurations are provided, than
-            ``pyMAISE.Settings.num_configs_saved`` then all are taken.
+        data: dict of tuple(pd.DataFrame, nnHyperModel)
+            Top ``pyMAISE.Settings.num_configs_saved`` configurations per model.
         """
-        print("Hyperparameter tuning neural networks with hyperband search")
-
-        kt_objective = self._determine_kt_objective(objective)
-        oracle = HyperbandOracle(
-            objective=kt_objective[0],
-            max_epochs=max_epochs,
-            factor=factor,
-            hyperband_iterations=hyperband_iterations,
-            seed=settings.values.random_state,
-            hyperparameters=hyperparameters,
-            tune_new_entries=tune_new_entries,
-            allow_new_entries=allow_new_entries,
-            max_retries_per_trial=max_retries_per_trial,
-            max_consecutive_failed_trials=max_consecutive_failed_trials,
+        warnings.warn(
+            "nn_hyperband_search currently uses TPESampler rather than true Hyperband "
+            "pruning.  Use nn_bayesian_search for equivalent behaviour, or wait for "
+            "a future release with full Hyperband support.",
+            UserWarning,
+            stacklevel=2,
         )
+        print("Hyperparameter tuning neural networks with hyperband search (TPE)")
+
+        direction, metrics = self._determine_objective(objective)
+
         return self._nn_tuning(
             models=models,
-            objective=objective,
+            direction=direction,
             cv=cv,
             shuffle=shuffle,
-            oracle=oracle,
-            metrics=kt_objective[1],
-            overwrite=overwrite,
-            directory=directory,
-            project_name=project_name,
+            sampler_factory=lambda _: TPESampler(seed=settings.values.random_state),
+            n_trials_factory=lambda _: n_trials,
+            metrics=metrics,
         )
 
     def _nn_tuning(
         self,
         models,
-        objective,
+        direction,
         cv,
         shuffle,
-        oracle,
+        sampler_factory,
+        n_trials_factory,
         metrics,
-        overwrite,
-        directory,
-        project_name,
     ):
+        """
+        Inner driver for all four NN search methods.
+
+        Parameters
+        ----------
+        sampler_factory: callable
+            ``sampler_factory(hypermodel) -> optuna.samplers.BaseSampler``.
+            Called per model so grid search can derive its sampler from the
+            model's search space via ``hypermodel.get_search_space()``.
+        n_trials_factory: callable
+            ``n_trials_factory(hypermodel) -> int``.
+            Called per model for the same reason.
+        """
         # Find all NN models if none are given by user
         if models is None:
             models = [
                 model
                 for model in self._models.keys()
-                if not self.supported_classical_models.__contains__(model)
+                if model not in self.supported_classical_models
             ]
 
         data = {}
@@ -1057,40 +886,39 @@ class Tuner:
 
         for model in models:
             start_time = time.time()
+            hypermodel = self._models[model]
 
-            # Initialize keras-tuner tuner
             tuner = NNTuner(
-                objective=objective,
+                hypermodel=hypermodel,
+                sampler=sampler_factory(hypermodel),
+                n_trials=n_trials_factory(hypermodel),
+                objective=model,
                 cv=cv,
                 shuffle=shuffle,
-                hypermodel=self._models[model],
-                oracle=copy.deepcopy(oracle),
                 metrics=metrics,
-                overwrite=overwrite,
-                directory=directory,
-                project_name=project_name,
-                verbose=settings.values.verbosity,
+                direction=direction,
             )
 
-            # Run search
-            tuner.search(
-                x=self._xtrain, y=self._ytrain, verbose=settings.values.verbosity
+            tuner.search(x=self._xtrain, y=self._ytrain)
+
+            # Sort completed trials by objective value and keep the top configs.
+            # Trials are plain dicts of {param_name: value}, so they serialise
+            # directly into a DataFrame without any keras-tuner wrapper needed.
+            reverse = direction == "maximize"
+            best_trials = sorted(
+                tuner.study.trials, key=lambda t: t.value, reverse=reverse
             )
+            best_params = [
+                t.params for t in best_trials[: settings.values.num_configs_saved]
+            ]
+            top_configs = pd.DataFrame({"params": best_params})
 
-            # Get best hyperparameters
-            best_hps = tuner.get_best_hyperparameters(settings.values.num_configs_saved)
-            top_configs = pd.DataFrame({"params": best_hps})
-
-            # Save test scores
             self._tuning[model] = np.array(
-                [
-                    tuner.mean_test_score,
-                    tuner.std_test_score,
-                ]
+                [tuner.mean_test_score, tuner.std_test_score]
             )
             timing[model] = time.time() - start_time
 
-            data[model] = (top_configs, tuner.hypermodel)
+            data[model] = (top_configs, hypermodel)
 
         if settings.values.verbosity > 0:
             print("\nTop Configurations")
@@ -1099,32 +927,37 @@ class Tuner:
                     f"\n-- {model} | Training Time: "
                     + f"{time.strftime('%T', time.gmtime(timing[model]))}"
                 )
-                for param, value in top_configs.iloc[0, 0].values.items():
+                # top_configs.iloc[0, 0] is a plain dict; no .values wrapper needed
+                for param, value in top_configs.iloc[0, 0].items():
                     print(f"{param}: {value}")
 
         _try_clear()
         return data
 
-    def _determine_kt_objective(self, objective):
-        """Determine objective from sklearn and make it compatible with keras_tuner."""
-        if objective in ["r2_score", "accuracy_score"]:
-            return (
-                kt.Objective(objective, direction="max"),
-                eval(f"{objective}"),
-            )
-        elif objective in [
+    def _determine_objective(self, objective):
+        """
+        Return ``(direction, metrics_callable)`` for the given objective name.
+
+        ``direction`` is ``"maximize"`` or ``"minimize"`` and is passed directly
+        to ``optuna.create_study``.  ``metrics_callable`` is the corresponding
+        sklearn metrics function, or ``None`` when ``objective`` is ``None`` or an
+        unrecognised string (NNTuner will use its built-in default in that case).
+        """
+        _maximize = {"r2_score", "accuracy_score"}
+        _minimize = {
             "f1_score",
             "mean_absolute_error",
             "mean_squared_error",
             "precision_score",
             "recall_score",
-        ]:
-            return (
-                kt.Objective(objective, direction="min"),
-                eval(f"{objective}"),
-            )
+        }
+
+        if objective in _maximize:
+            return "maximize", eval(objective)
+        elif objective in _minimize:
+            return "minimize", eval(objective)
         else:
-            return (objective, None)
+            return "minimize", None
 
     def convergence_plot(self, ax=None, model_types=None):
         """
