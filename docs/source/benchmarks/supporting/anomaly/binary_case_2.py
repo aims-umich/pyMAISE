@@ -1,7 +1,10 @@
 """
 binary_case_2.py.
 
-Script for hyperparameter tuning LSTM, GRU, and CNN-LSTM using 2D data.
+Script for hyperparameter tuning LSTM and GRU using 2D data with rolling windows.
+
+Note: CNN-LSTM (TimeDistributed Conv → LSTM) was removed because the
+TimeDistributed wrapper pattern is not supported by the PyTorch backend.
 """
 
 import pickle
@@ -11,7 +14,6 @@ import numpy as np
 import settings
 from preprocessing import load_anomaly_data, split_sequences, plot_label_frequency
 from sklearn.model_selection import TimeSeriesSplit
-from keras.layers import TimeDistributed
 
 import pyMAISE as mai
 
@@ -51,22 +53,15 @@ plot_label_frequency(ytrain, ytest, "./figs/bc2_frequency.png")
 lstm_structure = {
     "LSTM_input": {
         "units": mai.Int(min_value=25, max_value=200),
-        "input_shape": xtrain.shape[1:],
-        "activation": "tanh",
-        "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "LSTM": {
         "num_layers": mai.Int(0, 4),
         "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "LSTM_output": {
         "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
     },
     "Dense": {
         "num_layers": mai.Int(0, 4),
@@ -82,93 +77,18 @@ lstm_structure = {
 gru_structure = {
     "GRU_input": {
         "units": mai.Int(min_value=25, max_value=200),
-        "input_shape": xtrain.shape[1:],
-        "activation": "tanh",
-        "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "GRU": {
         "num_layers": mai.Int(0, 4),
         "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "GRU_output": {
         "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
     },
     "Dense": {
         "num_layers": mai.Int(0, 4),
-        "units": mai.Int(min_value=25, max_value=300),
-        "activation": "relu",
-    },
-    "Dense_output": {
-        "units": ytrain.shape[-1],
-        "activation": "sigmoid",
-    },
-}
-
-cnn_lstm_structure = {
-    "Reshape_input": {"target_shape": (5, 2, xtrain.shape[-1])},
-    "Conv1D_input": {
-        "filters": mai.Int(min_value=50, max_value=150),
-        "kernel_size": mai.Int(min_value=1, max_value=5),
-        "activation": "relu",
-        "padding": "same",
-        "wrapper": (
-            TimeDistributed,
-            {"input_shape": (None, 2, xtrain.shape[-1])},
-        ),
-    },
-    "MaxPooling1D_input": {
-        "pool_size": 2,
-        "wrapper": TimeDistributed,
-        "padding": "same",
-        "sublayer": mai.Choice(["Dropout", "None"]),
-        "Dropout": {
-            "rate": mai.Float(min_value=0.2, max_value=0.6),
-            "wrapper": TimeDistributed,
-        },
-    },
-    "Conv1D": {
-        "num_layers": mai.Int(min_value=0, max_value=3),
-        "filters": mai.Int(min_value=50, max_value=150),
-        "kernel_size": mai.Int(min_value=1, max_value=5),
-        "activation": "relu",
-        "padding": "same",
-        "wrapper": TimeDistributed,
-        "sublayer": "MaxPooling1D",
-        "MaxPooling1D": {
-            "pool_size": 2,
-            "wrapper": TimeDistributed,
-            "padding": "same",
-            "sublayer": mai.Choice(["Dropout", "None"]),
-            "Dropout": {
-                "rate": mai.Float(min_value=0.2, max_value=0.6),
-                "wrapper": TimeDistributed,
-            },
-        },
-    },
-    "Flatten": {
-        "wrapper": TimeDistributed,
-    },
-    "LSTM": {
-        "num_layers": mai.Int(min_value=0, max_value=4),
-        "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
-        "recurrent_dropout": mai.Choice([0.0, 0.2, 0.4, 0.6]),
-        "return_sequences": True,
-    },
-    "LSTM_output": {
-        "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
-    },
-    "Dense": {
-        "num_layers": mai.Int(min_value=0, max_value=5),
         "units": mai.Int(min_value=25, max_value=300),
         "activation": "relu",
     },
@@ -179,18 +99,15 @@ cnn_lstm_structure = {
 }
 
 model_settings = {
-    "models": ["LSTM", "GRU", "CNN-LSTM"],
+    "models": ["LSTM", "GRU"],
     "LSTM": {
         "structural_params": lstm_structure,
         "optimizer": "Adam",
         "Adam": {
             "learning_rate": mai.Float(1e-5, 0.001),
-            "clipnorm": mai.Float(0.8, 1.2),
-            "clipvalue": mai.Float(0.3, 0.7),
         },
         "compile_params": {
             "loss": "categorical_crossentropy",
-            "metrics": ["accuracy"],
         },
         "fitting_params": {
             "batch_size": mai.Choice([32, 64, 128]),
@@ -203,30 +120,9 @@ model_settings = {
         "optimizer": "Adam",
         "Adam": {
             "learning_rate": mai.Float(1e-5, 0.001),
-            "clipnorm": mai.Float(0.8, 1.2),
-            "clipvalue": mai.Float(0.3, 0.7),
         },
         "compile_params": {
             "loss": "categorical_crossentropy",
-            "metrics": ["accuracy"],
-        },
-        "fitting_params": {
-            "batch_size": mai.Choice([32, 64, 128]),
-            "epochs": 7,
-            "validation_split": 0.10,
-        },
-    },
-    "CNN-LSTM": {
-        "structural_params": cnn_lstm_structure,
-        "optimizer": "Adam",
-        "Adam": {
-            "learning_rate": mai.Float(1e-5, 0.001),
-            "clipnorm": mai.Float(0.8, 1.2),
-            "clipvalue": mai.Float(0.3, 0.7),
-        },
-        "compile_params": {
-            "loss": "categorical_crossentropy",
-            "metrics": ["accuracy"],
         },
         "fitting_params": {
             "batch_size": mai.Choice([32, 64, 128]),
@@ -242,7 +138,7 @@ tuner = mai.Tuner(xtrain, ytrain, model_settings=model_settings)
 # Hyperparameter tuning
 configs = tuner.nn_bayesian_search(
     objective="accuracy_score",
-    max_trials=50,
+    n_trials=50,
     cv=TimeSeriesSplit(n_splits=5),
 )
 

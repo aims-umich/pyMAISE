@@ -9,9 +9,11 @@ from pathlib import Path
 
 anomaly_dir = Path(__file__).parent
 
-# Data paths (absolute path or relative path from anomaly directory)
-input_path = anomaly_dir / "relative/path/to/input.npy"
-output_path = anomaly_dir / "relative/path/to/output.npy"
+# Data paths — None triggers automatic download from Mendeley and caching
+# in the pyMAISE OS cache directory (~/.cache/pyMAISE on Linux/macOS).
+# Set to a local file path only if you already have the DTL dataset on disk.
+input_path = None
+output_path = None
 
 # pyMAISE settings
 problem_type = mai.ProblemType.CLASSIFICATION

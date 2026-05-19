@@ -540,9 +540,25 @@ def load_loca(stack_series=False):
         return nominal_data, perturbed_data
 
 
+_MENDELEY_BASE = (
+    "https://data.mendeley.com/public-files/datasets/kbbrw99vh8/files"
+    "/{fid}/file_downloaded"
+)
+_ANOMALY_FILES = {
+    "DTL.npy": {
+        "fid": "aedd9df3-e5a0-4e60-a017-bee1ea466b82",
+        "hash": "sha256:dc5a29cadb0265efa8b2f97a12c9c7a32c70466bd75b6d29564c3a7547720e01",
+    },
+    "DTL_labels.npy": {
+        "fid": "47779746-f804-4fd3-acac-5171486a5024",
+        "hash": "sha256:5edc08c4e7e885e8c0b4788490079543d584e87f48ea1206845fcb99364179ac",
+    },
+}
+
+
 def load_anomaly(
-    input_path,
-    output_path,
+    input_path=None,
+    output_path=None,
     stack_series=False,
     multiclass=False,
     propagate_output=False,
@@ -591,12 +607,13 @@ radaideh2023early`. This dataset derives from the measurement of 14 parameters
 
     Parameters
     ----------
-    input_path: str
-        Path to input file. Raw data can be found at `Mendeley <https://da\
-        ta.mendeley.com/datasets/kbbrw99vh8/5>`_
-    output_path: str
-        Path to output file. Raw data can be found at `Mendeley <https://da\
-        ta.mendeley.com/datasets/kbbrw99vh8/5>`_
+    input_path: str or None, default=None
+        Path to ``DTL.npy``.  When ``None`` the file is downloaded
+        automatically from `Mendeley <https://data.mendeley.com/datasets/\
+kbbrw99vh8/5>`_ on first use and cached in the pyMAISE OS cache directory.
+    output_path: str or None, default=None
+        Path to ``DTL_labels.npy``.  Same auto-download behaviour as
+        ``input_path``.
     stack_series: bool, default=False
         If true, then the samples and time steps dimensions are combined.
         ``propagate_output`` must be true for ``stack_series`` to be true.
@@ -619,6 +636,22 @@ radaideh2023early`. This dataset derives from the measurement of 14 parameters
     outputs: xarray.DataArray
         1 output.
     """
+    # Resolve paths — download from Mendeley on first use if not provided.
+    def _mendeley(fname):
+        meta = _ANOMALY_FILES[fname]
+        return pooch.retrieve(
+            url=_MENDELEY_BASE.format(fid=meta["fid"]),
+            known_hash=meta["hash"],
+            fname=fname,
+            path=pooch.os_cache("pyMAISE"),
+            progressbar=True,
+        )
+
+    if input_path is None:
+        input_path = _mendeley("DTL.npy")
+    if output_path is None:
+        output_path = _mendeley("DTL_labels.npy")
+
     # Load the data
     X = np.load(input_path)[:, ::timestep_step, :]
     Y = np.load(
