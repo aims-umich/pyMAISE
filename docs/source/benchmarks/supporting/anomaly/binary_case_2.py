@@ -7,6 +7,7 @@ Note: CNN-LSTM (TimeDistributed Conv → LSTM) was removed because the
 TimeDistributed wrapper pattern is not supported by the PyTorch backend.
 """
 
+import os
 import pickle
 
 import matplotlib.pyplot as plt
@@ -143,6 +144,7 @@ configs = tuner.nn_bayesian_search(
 )
 
 # Save results to pickle
+os.makedirs("configs", exist_ok=True)
 with open("./configs/binary_case_2.pkl", "wb") as f:
     pickle.dump(configs, f)
 

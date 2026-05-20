@@ -4,6 +4,7 @@ binary_case_1.py.
 Script for hyperparameter tuning LSTM and GRU using 3D data.
 """
 
+import os
 import pickle
 from sklearn.model_selection import TimeSeriesSplit
 
@@ -134,6 +135,7 @@ configs = tuner.nn_bayesian_search(
 )
 
 # Save results to pickle
+os.makedirs("configs", exist_ok=True)
 with open("configs/binary_case_1.pkl", "wb") as f:
     pickle.dump(configs, f)
 
