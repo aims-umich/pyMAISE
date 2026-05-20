@@ -225,6 +225,12 @@ class NNTuner:
         simultaneously, naturally load-balancing across devices.
         """
         problem_type = settings.values.problem_type
+
+        # Populate trial.params by sampling once on the main process.
+        # FixedTrial in each subprocess requires all parameter names to be
+        # present at construction time, but trial.params is empty until
+        # build() calls suggest_* at least once.  The built model is discarded.
+        self.hypermodel.build(trial)
         trial_params = trial.params
 
         futures = {}
