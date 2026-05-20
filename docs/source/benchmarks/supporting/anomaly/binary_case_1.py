@@ -21,7 +21,8 @@ global_settings = mai.init(
     problem_type=settings.problem_type,
     verbosity=settings.verbosity,
     random_state=settings.random_state,
-    cuda_visible_devices="1",  # Use GPU 1
+    cuda_visible_devices="0,1",
+    run_parallel=True, 
 )
 
 # Load training/testing data
