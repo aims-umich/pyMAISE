@@ -21,7 +21,7 @@ global_settings = mai.init(
     problem_type=settings.problem_type,
     verbosity=settings.verbosity,
     random_state=settings.random_state,
-    cuda_visible_devices="0,1",
+    cuda_visible_devices="0,1,2",
     run_parallel=True, 
 )
 
