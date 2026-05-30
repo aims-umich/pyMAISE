@@ -1,14 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from pyMAISE.explain.shap.explainers import (
-    DeepExplainer,
-    ExactExplainer,
-    GradientExplainer,
-    KernelExplainer,
-)
-from pyMAISE.explain.shap.plots._beeswarm import summary_legacy as summary_plot
+import torch
+from captum.attr import DeepLiftShap, GradientShap, KernelShap, ShapleyValues
 
 
 def plot_bar_with_labels(df, fig=None, ax=None):
@@ -37,19 +31,21 @@ def plot_bar_with_labels(df, fig=None, ax=None):
 
 
 class ShapExplainers:
-    """Explainers class based on SHAP.
+    """Explainers class based on Captum attributions.
     Allows for model-specific explainability features for
-    a variety of SHAP methods, including DeepLIFT, KernelSHAP,
+    a variety of methods, including DeepLIFT, KernelSHAP,
     and Integrated Gradients. Also features plotting capabilities
-    for beeswarm and bar plots after SHAP value
+    for bar plots after attribution value
     calculations for any method.
 
     Parameters
     ----------
     base_model: model object.
         Must contain an associated .predict() method.
+        Neural-network methods (DeepLIFT, IntGradients) additionally
+        require a skorch NeuralNet with an accessible .module_ attribute.
     X: np.array.
-        Array of feature values used for generating SHAP values.
+        Array of feature values used for generating attribution values.
     feature_names: list, default=None.
         Ordered list of feature names corresponding to the columns
         in X for plotting.
@@ -69,9 +65,8 @@ class ShapExplainers:
         seed=None,
         **model_params,
     ):
-        # Explainer Parameters
         self.model = base_model
-        self.X = X
+        self.X = np.asarray(X, dtype=np.float32)
         self.shap_raw = {}
         self.shap_samples = {}
         self.shap_mean = None
@@ -87,8 +82,7 @@ class ShapExplainers:
                 ["FEATURE " + str(i) for i in range(self.n_features)]
             )
 
-        # Infer number of outputs from the model prediction of two samples
-        self.n_outputs = self.model.predict(self.X[0:2, :], verbose=0).shape[1]
+        self.n_outputs = self.model.predict(self.X[0:2, :]).shape[1]
         if self.output_names is not None:
             assert len(self.output_names) == self.n_outputs
         else:
@@ -96,139 +90,258 @@ class ShapExplainers:
                 ["OUTPUT " + str(i) for i in range(self.n_outputs)]
             )
 
-    def DeepLIFT(self, nsamples=None):
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _sample(self, nsamples):
+        """Return (numpy array, float32 tensor) of nsamples rows from X (or all)."""
+        if nsamples is not None:
+            idx = np.random.choice(self.X.shape[0], size=nsamples, replace=False)
+            arr = self.X[idx]
+        else:
+            arr = self.X.copy()
+        return arr, torch.FloatTensor(arr)
+
+    def _get_torch_module(self):
+        """Return the nn.Module from a skorch wrapper (.module_), or None."""
+        return getattr(self.model, "module_", None)
+
+    def _make_forward_func(self):
+        """Wrap model.predict() as a Tensor→Tensor callable for model-agnostic methods."""
+        model = self.model
+
+        def forward(x: torch.Tensor) -> torch.Tensor:
+            return torch.FloatTensor(
+                model.predict(x.detach().numpy().astype("float32"))
+            )
+
+        return forward
+
+    def _run_attribution(
+        self,
+        key,
+        captum_class,
+        test_x,
+        inputs,
+        baselines,
+        *,
+        needs_module=True,
+        per_sample=False,
+        **attr_kwargs,
+    ):
         """
-        This function fits a DeepLIFT explainer to evaluate SHAP coeffiicents (only for
-        neural networks).
+        Generic attribution runner. Constructs a Captum explainer, calls
+        .attribute() for each output target, stacks results into shape
+        (n_samples, n_features, n_outputs), and stores in shap_raw/shap_samples.
 
         Parameters
         ----------
-        nsamples: int less than total samples in test set or None, default=None.
-            Number of samples used to estimate the DeepLIFT importances if it is
-            different than using all samples in X.
+        key: str
+            Key under which results are stored in shap_raw / shap_samples.
+        captum_class: Captum attribution class
+            Instantiated with the model argument (nn.Module or callable).
+        test_x: np.array
+            Test samples (numpy), stored in shap_samples.
+        inputs: torch.Tensor
+            Float32 tensor of test_x.
+        baselines: torch.Tensor
+            Reference/background tensor passed to .attribute().
+        needs_module: bool, default=True
+            True for gradient-based methods (DeepLiftShap, GradientShap) that
+            require an nn.Module and support target= in .attribute().
+            False for perturbation-based methods (KernelShap, ShapleyValues)
+            that accept any callable. Gradient-based methods leave the module
+            in eval() mode after attribution.
+        per_sample: bool, default=False
+            True for LIME-based methods (KernelShap) that must be called
+            one sample at a time.
+        **attr_kwargs
+            Forwarded verbatim to explainer.attribute().
         """
-        if nsamples is not None:
-            test_indices = np.random.choice(
-                self.X.shape[0], size=nsamples, replace=False
-            )
-            test_x_sample = self.X[test_indices]
-        else:
-            test_x_sample = self.X.copy()
+        if needs_module:
+            module = self._get_torch_module()
+            if module is None:
+                raise ValueError(
+                    f"{captum_class.__name__} requires a PyTorch nn.Module "
+                    "(skorch NeuralNet). Use KernelSHAP or Exact_SHAP for "
+                    "classical sklearn models."
+                )
+            module.eval()
+            explainer = captum_class(module)
 
-        # Get the shap values for DeepLift using the sample Xtest set
-        self.deep_lift = DeepExplainer(self.model, data=[self.X])
-        deepshap_values = self.deep_lift.shap_values(test_x_sample)
-        self.shap_raw["DeepLIFT"] = deepshap_values
-        self.shap_samples["DeepLIFT"] = test_x_sample
+            def _attr_one(x_in):
+                return np.stack(
+                    [
+                        explainer.attribute(
+                            x_in, baselines=baselines, target=i, **attr_kwargs
+                        )
+                        .detach()
+                        .numpy()
+                        for i in range(self.n_outputs)
+                    ],
+                    axis=2,
+                )
+
+        else:
+            fwd = self._make_forward_func()
+            explainer = captum_class(fwd)
+
+            def _attr_one(x_in):
+                return np.stack(
+                    [
+                        explainer.attribute(
+                            x_in, baselines=baselines, target=i, **attr_kwargs
+                        )
+                        .detach()
+                        .numpy()
+                        for i in range(self.n_outputs)
+                    ],
+                    axis=2,
+                )
+
+        if per_sample:
+            attributions = np.concatenate(
+                [_attr_one(inputs[j : j + 1]) for j in range(inputs.shape[0])],
+                axis=0,
+            )
+        else:
+            attributions = _attr_one(inputs)
+
+        self.shap_raw[key] = attributions
+        self.shap_samples[key] = test_x
+
+    # ------------------------------------------------------------------
+    # Public attribution methods
+    # ------------------------------------------------------------------
+
+    def DeepLIFT(self, nsamples=None):
+        """
+        Fit a DeepLIFT (DeepLiftShap) explainer to evaluate attribution
+        coefficients. Requires a skorch NeuralNet model.
+
+        Parameters
+        ----------
+        nsamples: int or None, default=None.
+            Number of test samples. Uses all X if None.
+        """
+        test_x, inputs = self._sample(nsamples)
+        self._run_attribution(
+            "DeepLIFT",
+            DeepLiftShap,
+            test_x,
+            inputs,
+            torch.FloatTensor(self.X),
+            needs_module=True,
+        )
 
     def IntGradients(self, nsamples=None):
         """
-        This function fits an Integrated Gradient explainer to evaluate SHAP
-        coeffiicents.
+        Fit a GradientShap (Expected Gradients) explainer to evaluate
+        attribution coefficients. Requires a skorch NeuralNet model.
 
         Parameters
         ----------
-        nsamples: int less than total samples in test set or None, default=None.
-            Number of test samples used to estimate the IG importances if it is
-            different than using all samples in X.
+        nsamples: int or None, default=None.
+            Number of test samples. Uses all X if None.
         """
-        if nsamples is not None:
-            test_indices = np.random.choice(
-                self.X.shape[0], size=nsamples, replace=False
-            )
-            test_x_sample = self.X[test_indices]
-        else:
-            test_x_sample = self.X.copy()
-
-        self.ig = GradientExplainer(self.model, data=[self.X])
-        igshap_values = self.ig.shap_values(test_x_sample)
-
-        self.shap_raw["IG"] = igshap_values
-        self.shap_samples["IG"] = test_x_sample
+        test_x, inputs = self._sample(nsamples)
+        self._run_attribution(
+            "IG",
+            GradientShap,
+            test_x,
+            inputs,
+            torch.FloatTensor(self.X),
+            needs_module=True,
+        )
 
     def KernelSHAP(self, n_background_samples=500, n_test_samples=200, n_bootstrap=200):
         """
-        This function fits a Kernel SHAP explainer to evaluate SHAP coefficients.
+        Fit a Kernel SHAP (KernelShap) explainer to evaluate attribution
+        coefficients. Works with any model that has a .predict() method.
 
         Parameters
         ----------
-        n_background_samples: int less than total samples in X, default=500.
-            Number of training samples used as background for integrating out features.
-        n_test_samples: int less than total samples in X, default=200.
-            Number of
-            test samples used to estimate the Kernel SHAP importances.
+        n_background_samples: int, default=500.
+            Number of background samples used as baselines.
+        n_test_samples: int, default=200.
+            Number of test samples to explain.
         n_bootstrap: int, default=200.
-            Number of times to re-evaluate the model
-            when explaining each prediction. More samples lead to lower variance
-            estimates of the SHAP values.
+            Number of perturbation samples per explanation.
         """
         if len(self.X) < n_background_samples:
-            emsg = (
+            raise AttributeError(
                 "Total number of samples is less"
                 "than requested number of background samples."
             )
-            raise AttributeError(emsg)
-
         if len(self.X) < n_test_samples:
-            emsg = (
+            raise AttributeError(
                 "Total number of samples is less than requested number of test samples."
             )
-            raise AttributeError(emsg)
 
         indices = np.random.choice(
-            self.X.shape[0], size=n_background_samples + n_test_samples, replace=False
+            self.X.shape[0],
+            size=n_background_samples + n_test_samples,
+            replace=False,
         )
-        background_data = self.X[indices[0:n_background_samples]]
+        background_data = self.X[indices[:n_background_samples]]
         test_data = self.X[indices[n_background_samples:]]
 
-        self.kernel_e = KernelExplainer(self.model, data=background_data)
-        kernel_shap_values = self.kernel_e.shap_values(
-            test_data, nsamples=n_bootstrap, silent=True
-        )
+        # KernelShap (LIME-based) requires a single baseline tensor; passing a
+        # distribution of backgrounds batches them together and violates Captum's
+        # scalar-output assertion. Use the mean background as the representative
+        # baseline, which is standard practice for tabular KernelSHAP.
+        mean_baseline = torch.FloatTensor(background_data.mean(axis=0, keepdims=True))
 
-        self.shap_raw["KernelSHAP"] = kernel_shap_values
-        self.shap_samples["KernelSHAP"] = test_data
+        self._run_attribution(
+            "KernelSHAP",
+            KernelShap,
+            test_data,
+            torch.FloatTensor(test_data),
+            mean_baseline,
+            needs_module=False,
+            per_sample=True,
+            n_samples=n_bootstrap,
+            # perturbations_per_eval=1 keeps each masked-input batch at size 1 so
+            # Captum's LIME assertion (numel(output) == len(inputs) == 1) holds.
+            perturbations_per_eval=1,
+        )
 
     def Exact_SHAP(self, nsamples=None):
         """
-        This function fits an Exact SHAP explainer to evaluate SHAP coefficients.
+        Fit an exact Shapley value explainer. Works with any model that has a
+        .predict() method. Only feasible for small feature counts (< ~10).
 
         Parameters
         ----------
-        nsamples: int less than total samples in X, default=None.
-            Number of test
-            samples used to estimate the exact importances if it is different than using
-            all samples in X.
+        nsamples: int or None, default=None.
+            Number of test samples. Uses all X if None.
         """
-        if nsamples is not None:
-            test_indices = np.random.choice(
-                self.X.shape[0], size=nsamples, replace=False
-            )
-            test_x_sample = self.X[test_indices]
-        else:
-            test_x_sample = self.X.copy()
-        self.exact_e = ExactExplainer(self.model.predict, self.X)
-        exact_shap_values = self.exact_e(test_x_sample).values
-        if len(exact_shap_values.shape) != 3:
-            self.shap_raw["ExactSHAP"] = exact_shap_values.reshape(
-                exact_shap_values.shape[0], exact_shap_values.shape[1], 1
-            )
-        self.shap_raw["ExactSHAP"] = exact_shap_values
-        self.shap_samples["ExactSHAP"] = test_x_sample
+        test_x, inputs = self._sample(nsamples)
+        self._run_attribution(
+            "ExactSHAP",
+            ShapleyValues,
+            test_x,
+            inputs,
+            torch.zeros(1, self.n_features),
+            needs_module=False,
+        )
+
+    # ------------------------------------------------------------------
+    # Post-processing and plotting
+    # ------------------------------------------------------------------
 
     def postprocess_results(self):
         self.shap_mean = {}
         self.shap_net_effect = {}
-        for i, (key, value) in enumerate(self.shap_raw.items()):
+        for key in self.shap_raw:
             self.shap_mean[key] = pd.DataFrame(
                 np.abs(self.shap_raw[key]).mean(axis=0),
                 columns=self.output_names,
                 index=self.feature_names,
             )
 
-            # The total_effect is now a 2D array of features x outputs
             total_effect = self.shap_raw[key].sum(axis=0)
-            # Normalize the values while preserving the sign
             norm_effect = total_effect / np.sum(np.abs(total_effect), axis=0)
             self.shap_net_effect[key] = pd.DataFrame(
                 norm_effect, columns=self.output_names, index=self.feature_names
@@ -244,171 +357,52 @@ class ShapExplainers:
         save_figs=True,
     ):
         """
-        Makes a beeswarm plot and bar plot for each shap method, or to make one for a
-        particular method. If no output_index is given, make a plot for each.
+        Makes a bar plot for each attribution method (or a specific one).
+        If no output_index is given, makes a plot for each output.
 
         Parameters
         ----------
         output_name: str, default=None.
-            The name of the output variable the user
-            is interested in plotting. Must be defined in output_names.
+            Name of the output to plot. Must be in output_names.
         output_index: int, default=None.
-            The index of the output variable the
-            user is interested in plotting.
+            Index of the output to plot.
         method: str, default=None.
-            The key of the shap_raw array for the shap
-            method a user wishes to plot. Options include: "DeepLIFT", "KernelSHAP",
-            "IG", or "ExactSHAP."
+            Key of the shap_raw array to plot. Options: "DeepLIFT",
+            "KernelSHAP", "IG", "ExactSHAP".
         max_display: int, default=20.
-            The maximum number of input features that
-            will be displayed on a beeswarm plot.
+            Maximum number of features to display.
         run_name: str, default=None.
-            The name to save the figures as.
+            Filename prefix for saved figures.
         save_figs: bool, default=True.
-            Whether or not to save the figures
-            generated by this function.
+            Whether to save figures to disk.
         """
         if self.shap_mean is None or self.shap_net_effect is None:
-            emsg = (
+            raise AttributeError(
                 "Results have not been post-processed. Please run"
                 "post_process() method on your explain object prior to attempting"
                 "plotting."
             )
-            raise AttributeError(emsg)
 
         if output_name is not None and output_name not in self.output_names:
-            emsg = (
+            raise NameError(
                 "The output you requested is not defined for this model."
                 f"Valid output names include: {self.output_names}."
             )
-            raise NameError(emsg)
-
-        if output_index is None and output_name is not None:
-            names = np.array(self.output_names)
-            output_index = np.argwhere(names == output_name)[0][0]
-
-        figsize = (18, 8)
-
-        if method is None and output_index is None:
-            output_indexes = [i for i in range(self.n_outputs)]
-            methods = self.shap_raw.keys()
-
-        elif method is None and output_index is not None:
-            output_indexes = [output_index]
-            methods = self.shap_raw.keys()
-
-        elif method is not None and output_index is None:
-            output_indexes = [i for i in range(self.n_outputs)]
-            methods = [method]
-
-        elif method is not None and output_index is not None:
-            output_indexes = [output_index]
-            methods = [method]
-
-        for i in output_indexes:
-            for key in methods:
-                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-                fig.sca(ax1)
-                summary_plot(
-                    self.shap_raw[key][:, :, i],
-                    features=self.shap_samples[key],
-                    feature_names=self.feature_names,
-                    show=False,
-                    plot_size=None,
-                    max_display=max_display,
-                )
-                ax1.set_title("Beeswarm Summary", loc="center")
-                df_mean_sorted = (
-                    self.shap_mean[key].iloc[:, i].sort_values(ascending=False)
-                )
-                df_neteffect_sorted = (
-                    self.shap_net_effect[key].iloc[:, 0].loc[df_mean_sorted.index]
-                )
-                df_combined = pd.concat([df_mean_sorted, df_neteffect_sorted], axis=1)
-                fig.sca(ax2)
-                plot_bar_with_labels(df_combined, fig=fig, ax=ax2)
-                fig.suptitle(
-                    f"{key} {self.output_names[i]}",
-                    fontsize="x-large",
-                    fontweight="bold",
-                    y=1.02,
-                )
-                fig.tight_layout()
-
-                if save_figs:
-                    if run_name is None:
-                        fig.savefig(f"{key}_{i}.png", dpi=300)
-                    else:
-                        fig.savefig(f"{key}_{i}_{run_name}.png", dpi=300)
-                else:
-                    fig.show()
-
-    def plot_bar_only(
-        self,
-        output_name=None,
-        output_index=None,
-        method=None,
-        max_display=20,
-        run_name=None,
-        save_figs=True,
-    ):
-        """
-        Makes a bar plot for each shap method, or to make one for a
-        particular method. If no output_index is given, make a plot for each.
-
-        Parameters
-        ----------
-        output_name: str, default=None.
-            The name of the output variable the user
-            is interested in plotting. Must be defined in output_names.
-        output_index: int, default=None.
-            The index of the output variable the
-            user is interested in plotting.
-        method: str, default=None.
-            The key of the shap_raw array for the shap
-            method a user wishes to plot. Options include: "DeepLIFT", "KernelSHAP",
-            "IG", or "ExactSHAP."
-        max_display: int, default=20.
-            The maximum number of input features that
-            will be displayed on a beeswarm plot.
-        run_name: str, default=None.
-            The name to save the figures as.
-        save_figs: bool, default=True
-            Whether or not to save the figures
-            generated by this function.
-        """
-        if self.shap_mean is None or self.shap_net_effect is None:
-            emsg = (
-                "Results have not been post-processed. Please run"
-                "post_process() method on your explain object prior to attempting"
-                "plotting."
-            )
-            raise AttributeError(emsg)
-
-        if output_name is not None and output_name not in self.output_names:
-            emsg = (
-                "The output you requested is not defined for this model."
-                f"Valid output names include: {self.output_names}."
-            )
-            raise NameError(emsg)
 
         if output_index is None and output_name is not None:
             names = np.array(self.output_names)
             output_index = np.argwhere(names == output_name)[0][0]
 
         if method is None and output_index is None:
-            output_indexes = [i for i in range(self.n_outputs)]
+            output_indexes = list(range(self.n_outputs))
             methods = self.shap_raw.keys()
-
         elif method is None and output_index is not None:
             output_indexes = [output_index]
             methods = self.shap_raw.keys()
-
         elif method is not None and output_index is None:
-            output_indexes = [i for i in range(self.n_outputs)]
+            output_indexes = list(range(self.n_outputs))
             methods = [method]
-
-        elif method is not None and output_index is not None:
+        else:
             output_indexes = [output_index]
             methods = [method]
 
@@ -418,25 +412,26 @@ class ShapExplainers:
                 df_mean_sorted = (
                     self.shap_mean[key].iloc[:, i].sort_values(ascending=False)
                 )
+                if max_display is not None:
+                    df_mean_sorted = df_mean_sorted.iloc[:max_display]
                 df_neteffect_sorted = (
                     self.shap_net_effect[key].iloc[:, 0].loc[df_mean_sorted.index]
                 )
                 df_combined = pd.concat([df_mean_sorted, df_neteffect_sorted], axis=1)
-                ax.bar(
-                    df_combined.index,
-                    df_combined.iloc[:, 0],
-                    capsize=4,
-                    width=0.3,
-                    color="darkorchid",
+                plot_bar_with_labels(df_combined, fig=fig, ax=ax)
+                fig.suptitle(
+                    f"{key} {self.output_names[i]}",
+                    fontsize="x-large",
+                    fontweight="bold",
                 )
-                ax.set_ylabel("Mean of |SHAP Values|")
-                plt.xticks(rotation=90, ha="right")
                 fig.tight_layout()
 
                 if save_figs:
-                    if run_name is None:
-                        fig.savefig(f"{key}_{i}.png", dpi=300)
-                    else:
-                        fig.savefig(f"{key}_{i}_{run_name}.png", dpi=300)
+                    fname = (
+                        f"{key}_{i}.png"
+                        if run_name is None
+                        else f"{key}_{i}_{run_name}.png"
+                    )
+                    fig.savefig(fname, dpi=300)
                 else:
                     fig.show()

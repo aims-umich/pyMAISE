@@ -2,11 +2,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+import torch
+import torch.nn as nn
 from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.layers import Dense, Input
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.optimizers import Adam
+from skorch import NeuralNetRegressor
 
 from pyMAISE.explain import _explain as explain
 
@@ -33,18 +33,13 @@ def nn_model_and_xtest():
     xtrain, xtest, ytrain, ytest = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
-    model = Sequential()
-    model.add(Input(shape=(xtrain.shape[1],)))
-    model.add(Dense(10, kernel_initializer="normal", activation="relu"))
-    model.add(Dense(ytrain.shape[1], activation="linear", kernel_initializer="normal"))
-    learning_rate = 1e-3
-    model.compile(
-        loss="mean_absolute_error",
-        optimizer=Adam(learning_rate),
-        metrics=["mean_absolute_error"],
+    net = nn.Sequential(nn.Linear(5, 10), nn.ReLU(), nn.Linear(10, 3))
+    model = NeuralNetRegressor(module=net, max_epochs=2, batch_size=64, verbose=0)
+    model.fit(
+        torch.tensor(xtrain, dtype=torch.float32),
+        torch.tensor(ytrain, dtype=torch.float32),
     )
-    model.fit(xtrain, ytrain, epochs=2, batch_size=64, validation_split=0.15, verbose=0)
-    return model, xtest
+    return model, xtest.astype(np.float32)
 
 
 @pytest.fixture(scope="module")
