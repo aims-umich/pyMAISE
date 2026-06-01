@@ -166,7 +166,9 @@ class PostProcessor:
             p.n += 1
             p.refresh()
 
-            is_classical = self._models["Model Types"][i] in Tuner.supported_classical_models
+            is_classical = (
+                self._models["Model Types"][i] in Tuner.supported_classical_models
+            )
 
             if is_classical:
                 # Classical sklearn models: apply params via set_params then fit.
@@ -1092,9 +1094,9 @@ class PostProcessor:
 
         Returns
         -------
-        graph: torchview.ModelGraph
-            The model graph object. In a Jupyter notebook this renders inline;
-            call ``graph.visual_graph.render(filename)`` to save to a file.
+        graph: graphviz.Digraph
+            The rendered graph. In a Jupyter notebook this renders inline;
+            call ``graph.render(filename)`` to save to a file.
         """
         idx = self._get_idx(
             idx=idx,
@@ -1114,7 +1116,7 @@ class PostProcessor:
         # Derive input shape from training data (drop the sample/batch dimension).
         input_size = tuple(self._xtrain.shape[1:])
 
-        return draw_graph(model.module_, input_size=input_size, **kwargs)
+        return draw_graph(model.module_, input_size=input_size, **kwargs).visual_graph
 
     def confusion_matrix(
         self,
