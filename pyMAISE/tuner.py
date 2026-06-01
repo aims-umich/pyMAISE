@@ -1,4 +1,5 @@
 import copy
+import os
 import time
 import warnings
 
@@ -324,7 +325,9 @@ class Tuner:
                 )(parameters=parameters)
             else:
                 self._models[model] = copy.deepcopy(nnHyperModel)(
-                    parameters=parameters, input_shape=self._xtrain.shape[1:], name=model
+                    parameters=parameters,
+                    input_shape=self._xtrain.shape[1:],
+                    name=model,
                 )
 
     # ===========================================================
@@ -573,9 +576,7 @@ class Tuner:
     def _run_search(self, spaces, search_method, search_kwargs, models=None):
         if models is None:
             models = list(self._models.keys())
-        models = [
-            model for model in models if model in self.supported_classical_models
-        ]
+        models = [model for model in models if model in self.supported_classical_models]
 
         # Reshape if there is one feature
         xtrain = self._xtrain if self._xtrain.shape[-1] > 1 else self._xtrain[..., 0]
@@ -590,7 +591,26 @@ class Tuner:
                 search = search_method(
                     self._models[model].regressor(), spaces[model], **search_kwargs
                 )
-                resulting_models = search.fit(xtrain, ytrain)
+
+                # Classical models don't use GPU. When joblib spawns worker
+                # processes with n_jobs > 1, they inherit CUDA_VISIBLE_DEVICES
+                # and can fail to deserialize sklearn objects due to CUDA
+                # context conflicts. Hide GPUs from workers for the duration
+                # of the search, then restore.
+                _n_jobs = search_kwargs.get("n_jobs", 1)
+                _cuda_env = os.environ.get("CUDA_VISIBLE_DEVICES")
+                _hide_gpu = (
+                    _n_jobs not in (None, 1)
+                    and _cuda_env is not None
+                    and _cuda_env != "-1"
+                )
+                if _hide_gpu:
+                    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+                try:
+                    resulting_models = search.fit(xtrain, ytrain)
+                finally:
+                    if _hide_gpu:
+                        os.environ["CUDA_VISIBLE_DEVICES"] = _cuda_env
 
                 # Save tuning results
                 cv_results = pd.DataFrame(resulting_models.cv_results_)
