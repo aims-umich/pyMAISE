@@ -30,6 +30,45 @@ def plot_bar_with_labels(df, fig=None, ax=None):
     return ax
 
 
+def _beeswarm_y_offsets(x_vals, nbins=50):
+    """
+    Compute per-sample y offsets for a beeswarm layout.
+
+    Bins x_vals into equal-width bins and stacks samples symmetrically around
+    y=0 within each bin (0, +1, -1, +2, -2, ...), then scales all offsets to
+    fit within [-0.4, 0.4] so each feature row occupies unit height.
+    """
+    n = len(x_vals)
+    if n == 0:
+        return np.array([])
+    if np.ptp(x_vals) == 0:
+        return np.zeros(n)
+
+    x_min, x_max = x_vals.min(), x_vals.max()
+    bin_ids = (
+        np.floor((x_vals - x_min) / (x_max - x_min + 1e-12) * nbins)
+        .astype(int)
+        .clip(0, nbins - 1)
+    )
+
+    offsets = np.zeros(n)
+    for b in np.unique(bin_ids):
+        idx_in_bin = np.where(bin_ids == b)[0]
+        for k, idx in enumerate(idx_in_bin):
+            if k == 0:
+                offsets[idx] = 0.0
+            elif k % 2 == 1:
+                offsets[idx] = (k + 1) / 2.0
+            else:
+                offsets[idx] = -(k / 2.0)
+
+    max_abs = np.abs(offsets).max()
+    if max_abs > 0:
+        offsets = offsets / max_abs * 0.4
+
+    return offsets
+
+
 class ShapExplainers:
     """Explainers class based on Captum attributions.
     Allows for model-specific explainability features for
@@ -431,6 +470,136 @@ class ShapExplainers:
                         f"{key}_{i}.png"
                         if run_name is None
                         else f"{key}_{i}_{run_name}.png"
+                    )
+                    fig.savefig(fname, dpi=300)
+                else:
+                    fig.show()
+
+    def plot_beeswarm(
+        self,
+        output_name=None,
+        output_index=None,
+        method=None,
+        max_display=20,
+        run_name=None,
+        save_figs=True,
+    ):
+        """
+        Beeswarm summary plot for attribution values.
+
+        Features are sorted by mean |attribution| (most important at top). Each
+        dot is one sample, jittered vertically to avoid overlap and colored by
+        its actual feature value (blue = low, red = high, per-feature scale).
+        Requires postprocess_results() to be called first.
+
+        Parameters
+        ----------
+        output_name: str, default=None.
+            Name of the output to plot. Must be in output_names.
+        output_index: int, default=None.
+            Index of the output to plot.
+        method: str, default=None.
+            Key of the shap_raw array to plot. Options: "DeepLIFT",
+            "KernelSHAP", "IG", "ExactSHAP".
+        max_display: int, default=20.
+            Maximum number of features to display.
+        run_name: str, default=None.
+            Filename prefix for saved figures.
+        save_figs: bool, default=True.
+            Whether to save figures to disk.
+        """
+        if self.shap_mean is None or self.shap_net_effect is None:
+            raise AttributeError(
+                "Results have not been post-processed. Please run"
+                "post_process() method on your explain object prior to attempting"
+                "plotting."
+            )
+
+        if output_name is not None and output_name not in self.output_names:
+            raise NameError(
+                "The output you requested is not defined for this model."
+                f"Valid output names include: {self.output_names}."
+            )
+
+        if output_index is None and output_name is not None:
+            names = np.array(self.output_names)
+            output_index = np.argwhere(names == output_name)[0][0]
+
+        if method is None and output_index is None:
+            output_indexes = list(range(self.n_outputs))
+            methods = list(self.shap_raw.keys())
+        elif method is None and output_index is not None:
+            output_indexes = [output_index]
+            methods = list(self.shap_raw.keys())
+        elif method is not None and output_index is None:
+            output_indexes = list(range(self.n_outputs))
+            methods = [method]
+        else:
+            output_indexes = [output_index]
+            methods = [method]
+
+        for out_i in output_indexes:
+            for key in methods:
+                attr_vals = self.shap_raw[key][:, :, out_i]  # (n_samples, n_features)
+                feat_vals = self.shap_samples[key]  # (n_samples, n_features)
+
+                mean_abs = np.abs(attr_vals).mean(axis=0)
+                sorted_feat_idx = np.argsort(mean_abs)[::-1][:max_display]
+                n_disp = len(sorted_feat_idx)
+
+                fig, ax = plt.subplots(figsize=(8, max(3, n_disp * 0.4 + 1)))
+
+                for row_pos, feat_idx in enumerate(sorted_feat_idx[::-1]):
+                    x = attr_vals[:, feat_idx]
+                    fv = feat_vals[:, feat_idx]
+
+                    # Per-feature color normalization
+                    fv_min, fv_max = fv.min(), fv.max()
+                    if fv_max > fv_min:
+                        fv_norm = (fv - fv_min) / (fv_max - fv_min)
+                    else:
+                        fv_norm = np.full(len(fv), 0.5)
+
+                    ax.scatter(
+                        x,
+                        row_pos + _beeswarm_y_offsets(x),
+                        c=fv_norm,
+                        cmap="coolwarm",
+                        vmin=0,
+                        vmax=1,
+                        s=16,
+                        alpha=0.7,
+                        linewidths=0,
+                        zorder=2,
+                    )
+
+                ax.set_yticks(range(n_disp))
+                ax.set_yticklabels(
+                    [self.feature_names[i] for i in sorted_feat_idx[::-1]]
+                )
+                ax.axvline(0, color="gray", linewidth=0.8, linestyle="--", zorder=1)
+                ax.set_xlabel("Attribution Value")
+                ax.set_ylim(-0.5, n_disp - 0.5)
+                fig.suptitle(
+                    f"{key} {self.output_names[out_i]}",
+                    fontsize="x-large",
+                    fontweight="bold",
+                )
+
+                sm = plt.cm.ScalarMappable(cmap="coolwarm", norm=plt.Normalize(0, 1))
+                sm.set_array([])
+                cb = fig.colorbar(sm, ax=ax, shrink=0.5, pad=0.01)
+                cb.set_label("Feature Value")
+                cb.set_ticks([0, 1])
+                cb.set_ticklabels(["Low", "High"])
+
+                fig.tight_layout()
+
+                if save_figs:
+                    fname = (
+                        f"{key}_{out_i}_beeswarm.png"
+                        if run_name is None
+                        else f"{key}_{out_i}_{run_name}_beeswarm.png"
                     )
                     fig.savefig(fname, dpi=300)
                 else:
