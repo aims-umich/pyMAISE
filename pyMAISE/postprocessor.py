@@ -1116,7 +1116,21 @@ class PostProcessor:
         # Derive input shape from training data (drop the sample/batch dimension).
         input_size = tuple(self._xtrain.shape[1:])
 
-        return draw_graph(model.module_, input_size=input_size, **kwargs).visual_graph
+        try:
+            return draw_graph(
+                model.module_, input_size=input_size, **kwargs
+            ).visual_graph
+        except Exception as e:
+            if "dot" in str(e).lower() or "executable" in str(e).lower():
+                raise RuntimeError(
+                    "Graphviz system package is required for nn_network_plot(). "
+                    "Install it with:\n"
+                    "  conda install -c conda-forge graphviz\n"
+                    "or\n"
+                    "  brew install graphviz   # macOS\n"
+                    "  apt install graphviz    # Ubuntu/Debian"
+                ) from e
+            raise
 
     def confusion_matrix(
         self,

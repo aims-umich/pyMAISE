@@ -1,3 +1,15 @@
+import os
+import shutil
+import sys
+
+# Graphviz 'dot' binary: conda installs it to sys.prefix/bin but doesn't add it
+# to PATH when the env is activated from within a notebook kernel.
+if shutil.which("dot") is None:
+    _gv_bin = os.path.join(sys.prefix, "bin")
+    if os.path.isfile(os.path.join(_gv_bin, "dot")):
+        os.environ["PATH"] = _gv_bin + os.pathsep + os.environ.get("PATH", "")
+    del _gv_bin
+
 # Determine if display is terminal or notebook
 try:
     import IPython
