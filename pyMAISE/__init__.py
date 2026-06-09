@@ -22,7 +22,16 @@ except (NameError, ImportError):
 from pyMAISE.postprocessor import PostProcessor
 from pyMAISE.settings import ProblemType, init
 from pyMAISE.tuner import Tuner
-from pyMAISE.utils import Boolean, Choice, Fixed, Float, Int, _try_clear
+from pyMAISE.utils import (
+    Boolean,
+    Choice,
+    Fixed,
+    Float,
+    Int,
+    _try_clear,
+    load_tuning_results,
+    save_tuning_results,
+)
 from pyMAISE.explain import _explain as explain
 from pyMAISE.explain._explain import ShapExplainers
 
