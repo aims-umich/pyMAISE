@@ -83,3 +83,21 @@ def test_save_no_tuner_state_does_not_restore():
         assert restore_tuner._tuning == {}
     finally:
         os.unlink(path)
+
+
+@pytest.mark.datasets
+def test_load_tuning_results_from_zenodo():
+    # Use a path that doesn't exist locally to force a Zenodo download.
+    configs = load_tuning_results("results/chf_results.joblib")
+
+    # Should return two dicts: classical models and FNN
+    assert len(configs) == 2
+    classical, nn = configs
+    assert set(classical.keys()) == {"Linear", "Lasso", "SVM", "DT", "RF", "KN"}
+    assert set(nn.keys()) == {"FNN"}
+
+    # Each value is a (DataFrame, estimator) tuple; DataFrame has a "params" column
+    for model_dict in configs:
+        for name, (df, _estimator) in model_dict.items():
+            assert "params" in df.columns, f"{name}: missing 'params' column"
+            assert len(df) > 0, f"{name}: empty params DataFrame"
