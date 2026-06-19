@@ -64,15 +64,13 @@ cd docs && make html
 
 - **numpy compatibility**: `tuner.py` patches `np.int = int` for numpy ≥ 1.24. Don't remove this patch.
 - **scikit-optimize 0.9.0 is pinned**: do not upgrade — newer versions break numpy/scipy compatibility.
-- **numba 0.60.0 and cloudpickle 3.0.0 are pinned**: same reason.
 - **Dataset loading uses pooch**: benchmark datasets are fetched from Zenodo on first use and cached locally.
-- **TF_CPP_MIN_LOG_LEVEL=3** is set in `__init__.py` to suppress TensorFlow noise — leave it in place.
 
 ## Architecture
 
 - `pyMAISE/tuner.py` — model fitting and hyperparameter search orchestrator
 - `pyMAISE/postprocessor.py` — model evaluation, comparison, and plotting
 - `pyMAISE/methods/` — wrappers for 15 classical models + PyTorch NN layers
-- `pyMAISE/explain/` — SHAP explainability (DeepLIFT, IntegratedGradients, KernelSHAP, ExactSHAP)
+- `pyMAISE/explain/` — SHAP explainability methods through Captum package (DeepLiftShap, GradientShap, KernelShap, ShapleyValues), also includes explainability plotting functions
 - `pyMAISE/datasets/` — benchmark dataset loaders (pooch/Zenodo)
-- `docs/source/benchmarks/` — 9 Jupyter notebooks (MIT Reactor, Reactor Physics, BWR, etc.)
+- `docs/source/benchmarks/` — 9 Jupyter notebooks (MIT Reactor, Reactor Physics, BWR, etc.) Stored hyperparameter tuning results from these notebooks are on Zenodo and loaded unless the user sets RETUNE=True or files are unaccessible.
