@@ -21,4 +21,4 @@ from pyMAISE.explain._explain import ShapExplainers
 _try_clear()
 
 # This should always be the last line of this file
-__version__ = "1.0.0b0"
+__version__ = "1.0.0"
