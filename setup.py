@@ -6,8 +6,8 @@ from setuptools import find_packages, setup
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
 
-if sys.version_info < (3, 9) or sys.version_info > (3, 12):
-    sys.exit("pyMAISE only supports python>=3.9 and python<=3.11")
+if sys.version_info < (3, 11) or sys.version_info >= (3, 14):
+    sys.exit("pyMAISE only supports python>=3.11 and python<=3.13")
 
 # Get version from pyMAISE/__init__.py (always last line)
 with open("pyMAISE/__init__.py") as f:
@@ -19,20 +19,19 @@ setup(
     packages=find_packages(include=["pyMAISE", "pyMAISE.*"]),
     install_requires=[
         "pandas",
-        "numpy<1.24",
+        "numpy>=2.1",
         "scikit-learn",
         "scikit-optimize==0.9.0",
-        "tensorflow[and-cuda]>=2.12.0",
-        "keras-tuner",
-        "xarray==2023.10.1",
-        "scikeras",
+        "torch",
+        "captum>=0.7.0",
+        "optuna",
+        "skorch",
+        "xarray>=2024.10.0",
         "matplotlib",
         "tqdm",
-        "pydot",
         "graphviz",
-        "slicer==0.0.8",
-        "numba==0.60.0",
-        "cloudpickle==3.0.0",
+        "torchview",
+        "pooch",
     ],
     extras_require={
         "dev": [
@@ -49,11 +48,10 @@ setup(
             "chardet",
             "nbsphinx",
             "opencv-python",
-            "scipy",
+            "scipy>=1.11",
         ],
-        "benchmarks": ["jupyter", "opencv-python", "scipy"],
+        "benchmarks": ["jupyter", "opencv-python", "scipy>=1.11"],
     },
-    package_data={"pyMAISE.datasets": ["*.csv"]},
     description="Michigan Artificial Intelligance Standard Environment",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",

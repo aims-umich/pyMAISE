@@ -134,12 +134,17 @@ def test_heat_conduction():
         ]
     ]
 
-    # Assert expected dataframe and results match
+    # Assert expected dataframe and results match.
+    # rtol=1e-3: guards against minor floating-point drift between library
+    # versions (e.g. numpy or sklearn patch releases) without masking real
+    # regressions in model performance.
     print(
         "Expected Values\n",
         expected_metrics.sort_values(by=["Test R2"], ascending=False),
     )
     print("pyMAISE Values\n", metrics)
     pd.testing.assert_frame_equal(
-        expected_metrics.sort_values(by=["Test R2"], ascending=False), metrics
+        expected_metrics.sort_values(by=["Test R2"], ascending=False).reset_index(drop=True),
+        metrics.reset_index(drop=True),
+        rtol=1e-3,
     )

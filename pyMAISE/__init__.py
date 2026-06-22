@@ -1,6 +1,14 @@
 import os
+import shutil
+import sys
 
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+# Graphviz 'dot' binary: conda installs it to sys.prefix/bin but doesn't add it
+# to PATH when the env is activated from within a notebook kernel.
+if shutil.which("dot") is None:
+    _gv_bin = os.path.join(sys.prefix, "bin")
+    if os.path.isfile(os.path.join(_gv_bin, "dot")):
+        os.environ["PATH"] = _gv_bin + os.pathsep + os.environ.get("PATH", "")
+    del _gv_bin
 
 # Determine if display is terminal or notebook
 try:
@@ -14,7 +22,16 @@ except (NameError, ImportError):
 from pyMAISE.postprocessor import PostProcessor
 from pyMAISE.settings import ProblemType, init
 from pyMAISE.tuner import Tuner
-from pyMAISE.utils import Boolean, Choice, Fixed, Float, Int, _try_clear
+from pyMAISE.utils import (
+    Boolean,
+    Choice,
+    Fixed,
+    Float,
+    Int,
+    _try_clear,
+    load_tuning_results,
+    save_tuning_results,
+)
 from pyMAISE.explain import _explain as explain
 from pyMAISE.explain._explain import ShapExplainers
 

@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from keras_tuner import HyperParameters
 from sklearn.linear_model import Lasso, LinearRegression
 from sklearn.model_selection import ShuffleSplit
 from sklearn.preprocessing import MinMaxScaler
@@ -101,7 +100,6 @@ def setup_xs_nn_grid_search_results():
             },
             "compile_params": {
                 "loss": "mean_absolute_error",
-                "metrics": ["mean_absolute_error"],
             },
             "fitting_params": {
                 "batch_size": 8,
@@ -131,7 +129,7 @@ def test_constructor(setup_xs_grid_search_results, setup_xs_nn_grid_search_resul
 
     # Build PreProcessor
     new_model_settings = {
-        "nn": {"epochs": 20},
+        "fnn": {"fitting_params": {"epochs": 20}},
     }
     postprocessor = mai.PostProcessor(
         data=data,
@@ -152,7 +150,7 @@ def test_constructor(setup_xs_grid_search_results, setup_xs_nn_grid_search_resul
         else:
             assert isinstance(
                 postprocessor._models["Parameter Configurations"][i],
-                HyperParameters,
+                dict,
             )
             assert isinstance(postprocessor._models["History"][i], dict)
             assert "loss" in postprocessor._models["History"][i]
@@ -182,7 +180,7 @@ def setup_postprocessor(setup_xs_grid_search_results, setup_xs_nn_grid_search_re
 
     # Build PreProcessor
     new_model_settings = {
-        "nn": {"epochs": 20},
+        "fnn": {"fitting_params": {"epochs": 20}},
     }
     postprocessor = mai.PostProcessor(
         data=data,

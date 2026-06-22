@@ -2,7 +2,7 @@ from multiprocessing import Process, Manager
 import subprocess as sp
 
 import numpy as np
-from tensorflow.config import list_physical_devices
+import torch
 
 import pyMAISE.settings as settings
 from .device import Device
@@ -166,22 +166,16 @@ class ProcessPool(object):
             Empty list. After this function runs this will be a list of
             Device objects that are GPUs.
         """
-        # Get available GPUs
-        gpu_ids = list_physical_devices("GPU")
+        # Get available GPUs via PyTorch
+        n_gpus = torch.cuda.device_count()
 
-        if gpu_ids:
-            # Run with GPUs
-            gpu_idxs = np.array([gpu.name.split(":")[-1] for gpu in gpu_ids]).astype(
-                int
-            )
+        if n_gpus > 0:
+            gpu_memories = ProcessPool._get_gpu_memories()
 
-            # Get available memory
-            gpu_memories = ProcessPool._get_gpu_memories()[gpu_idxs]
-
-            # Add devices
+            # Add devices; use integer index as id (e.g. 0, 1, 2)
             devices += [
-                Device(id, free_memory, is_gpu=True)
-                for id, free_memory in zip(gpu_ids, gpu_memories)
+                Device(idx, gpu_memories[idx], is_gpu=True)
+                for idx in range(n_gpus)
             ]
 
         else:

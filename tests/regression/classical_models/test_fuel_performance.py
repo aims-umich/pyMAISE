@@ -129,12 +129,17 @@ def test_fuel_performance():
         ]
     ]
 
-    # Assert expected dataframe and results match
+    # Assert expected dataframe and results match.
+    # reset_index: postprocessor returns rows with original positional indices;
+    # reset both sides so the row-for-row comparison aligns on Test R2 sort order.
+    # rtol=1e-3: guards against minor floating-point drift between library versions.
     print(
         "Expected Values\n",
         expected_metrics.sort_values(by=["Test R2"], ascending=False),
     )
     print("pyMAISE Values\n", metrics)
     pd.testing.assert_frame_equal(
-        expected_metrics.sort_values(by=["Test R2"], ascending=False), metrics
+        expected_metrics.sort_values(by=["Test R2"], ascending=False).reset_index(drop=True),
+        metrics.reset_index(drop=True),
+        rtol=1e-3,
     )

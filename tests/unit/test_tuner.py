@@ -247,7 +247,7 @@ def test_nn_random_search(setup_nn_model_settings):
         # Run random search
         search_data = tuner.nn_random_search(
             objective="r2_score",
-            max_trials=3,
+            n_trials=3,
             cv=ShuffleSplit(n_splits=1, test_size=0.15, random_state=42),
         )
 
@@ -270,7 +270,7 @@ def test_nn_bayesian_search(setup_nn_model_settings):
         # Run bayesian search
         search_data = tuner.nn_bayesian_search(
             objective="r2_score",
-            max_trials=3,
+            n_trials=3,
             cv=ShuffleSplit(n_splits=1, test_size=0.15, random_state=42),
         )
 
@@ -293,6 +293,7 @@ def test_nn_hyperband_search(setup_nn_model_settings):
         # Run hyperband search
         search_data = tuner.nn_hyperband_search(
             objective="r2_score",
+            n_trials=3,
             cv=ShuffleSplit(n_splits=1, test_size=0.15, random_state=42),
         )
 

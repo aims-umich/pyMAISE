@@ -1,4 +1,4 @@
-from tensorflow.keras.layers import MaxPooling1D
+import torch.nn as nn
 
 from pyMAISE.methods.nn._layer import Layer
 
@@ -14,17 +14,18 @@ class MaxPooling1DLayer(Layer):
 
     # ==========================================================================
     # Methods
-    def build(self, hp):
-        # Set pyMAISE hyperparameters to keras-tuner hyperparameters
-        sampled_data = super().sample_parameters(self._data, hp)
-        return MaxPooling1D(**sampled_data)
+    def build(self, trial, in_size):
+        # Sample parameters and build PyTorch MaxPool1d module.
+        params = super().sample_parameters(self._data, trial)
+        pool_size = params["pool_size"]
+        strides = params.get("strides") or pool_size  # Keras default: stride = pool_size
+        return nn.MaxPool1d(kernel_size=pool_size, stride=strides), in_size
 
     def reset(self):
         self._data = {
             "pool_size": 2,
             "strides": None,
-            "padding": "valid",
-            "data_format": "channels_last",
+            "padding": "valid",  # kept for API compat; PyTorch padding=0 equivalent
         }
         super().reset()
 
@@ -33,11 +34,11 @@ class MaxPooling1DLayer(Layer):
 
     # ==========================================================================
     # Getters
-    def num_layers(self, hp):
-        return super().num_layers(hp)
+    def num_layers(self, trial):
+        return super().num_layers(trial)
 
-    def sublayer(self, hp):
-        return super().sublayer(hp)
+    def sublayer(self, trial):
+        return super().sublayer(trial)
 
     def wrapper(self):
         return super().wrapper()

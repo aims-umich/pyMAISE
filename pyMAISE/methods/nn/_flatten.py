@@ -1,4 +1,4 @@
-from tensorflow.keras.layers import Flatten
+import torch.nn as nn
 
 from pyMAISE.methods.nn._layer import Layer
 
@@ -14,14 +14,14 @@ class FlattenLayer(Layer):
 
     # ==========================================================================
     # Methods
-    def build(self, hp):
-        # Set pyMAISE hyperparameter to keras-tuner hyperparameter
-        return Flatten(**super().sample_parameters(self._data, hp))
+    def build(self, trial, in_size):
+        # Return -1 as the sentinel out_size so that the next Dense layer
+        # knows to use LazyLinear (the actual flat size is unknown at build
+        # time because it depends on the spatial dimensions of the Conv output).
+        return nn.Flatten(), -1
 
     def reset(self):
-        self._data = {
-            "data_format": None,
-        }
+        self._data = {}
         super().reset()
 
     def increment_layer(self):
@@ -29,11 +29,11 @@ class FlattenLayer(Layer):
 
     # ==========================================================================
     # Getters
-    def num_layers(self, hp):
-        return super().num_layers(hp)
+    def num_layers(self, trial):
+        return super().num_layers(trial)
 
-    def sublayer(self, hp):
-        return super().sublayer(hp)
+    def sublayer(self, trial):
+        return super().sublayer(trial)
 
     def wrapper(self):
         return super().wrapper()

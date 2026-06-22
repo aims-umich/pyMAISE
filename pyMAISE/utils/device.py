@@ -5,8 +5,8 @@ class Device(object):
 
     Parameters
     ----------
-    id: int or tensorflow.config.PhysicalDevice
-        ID for device.
+    id: int
+        CUDA device index (e.g. 0, 1, 2).
     free_memory: int
         Current memory on the device in MB.
     is_gpu: bool

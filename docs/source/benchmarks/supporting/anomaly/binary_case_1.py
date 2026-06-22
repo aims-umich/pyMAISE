@@ -4,6 +4,7 @@ binary_case_1.py.
 Script for hyperparameter tuning LSTM and GRU using 3D data.
 """
 
+import os
 import pickle
 from sklearn.model_selection import TimeSeriesSplit
 
@@ -20,7 +21,8 @@ global_settings = mai.init(
     problem_type=settings.problem_type,
     verbosity=settings.verbosity,
     random_state=settings.random_state,
-    cuda_visible_devices="1",  # Use GPU 1
+    cuda_visible_devices="0,1,2",
+    run_parallel=True, 
 )
 
 # Load training/testing data
@@ -46,22 +48,15 @@ plt.savefig("./figs/bc1_frequency.png", dpi=300)
 lstm_structure = {
     "LSTM_input": {
         "units": mai.Int(min_value=25, max_value=200),
-        "input_shape": xtrain.shape[1:],
-        "activation": "tanh",
-        "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "LSTM": {
         "num_layers": mai.Int(0, 4),
         "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "LSTM_output": {
         "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
     },
     "Dense": {
         "num_layers": mai.Int(0, 4),
@@ -77,22 +72,15 @@ lstm_structure = {
 gru_structure = {
     "GRU_input": {
         "units": mai.Int(min_value=25, max_value=200),
-        "input_shape": xtrain.shape[1:],
-        "activation": "tanh",
-        "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "GRU": {
         "num_layers": mai.Int(0, 4),
         "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
         "return_sequences": True,
     },
     "GRU_output": {
         "units": mai.Int(min_value=25, max_value=200),
-        "activation": mai.Choice(["tanh", "sigmoid"]),
-        "recurrent_activation": "sigmoid",
     },
     "Dense": {
         "num_layers": mai.Int(0, 4),
@@ -112,12 +100,9 @@ model_settings = {
         "optimizer": "Adam",
         "Adam": {
             "learning_rate": mai.Float(1e-5, 0.001),
-            "clipnorm": mai.Float(0.8, 1.2),
-            "clipvalue": mai.Float(0.3, 0.7),
         },
         "compile_params": {
             "loss": "categorical_crossentropy",
-            "metrics": ["accuracy"],
         },
         "fitting_params": {
             "batch_size": mai.Choice([8, 16, 32]),
@@ -130,12 +115,9 @@ model_settings = {
         "optimizer": "Adam",
         "Adam": {
             "learning_rate": mai.Float(1e-5, 0.001),
-            "clipnorm": mai.Float(0.8, 1.2),
-            "clipvalue": mai.Float(0.3, 0.7),
         },
         "compile_params": {
             "loss": "categorical_crossentropy",
-            "metrics": ["accuracy"],
         },
         "fitting_params": {
             "batch_size": mai.Choice([8, 16, 32]),
@@ -149,11 +131,12 @@ tuner = mai.Tuner(xtrain, ytrain, model_settings=model_settings)
 # Hyperparameter tuning
 configs = tuner.nn_bayesian_search(
     objective="accuracy_score",
-    max_trials=50,
+    n_trials=50,
     cv=TimeSeriesSplit(n_splits=5),
 )
 
 # Save results to pickle
+os.makedirs("configs", exist_ok=True)
 with open("configs/binary_case_1.pkl", "wb") as f:
     pickle.dump(configs, f)
 

@@ -1,51 +1,59 @@
-from tensorflow.keras.layers import GRU
+import torch.nn as nn
 
 from pyMAISE.methods.nn._layer import Layer
 
 
+class _GRUBlock(nn.Module):
+    """GRU layer that handles return_sequences."""
+
+    def __init__(self, input_size, hidden_size, return_sequences=False, dropout=0.0):
+        super().__init__()
+        self.gru = nn.GRU(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            batch_first=True,
+            dropout=dropout,
+        )
+        self.return_sequences = return_sequences
+
+    def forward(self, x):
+        output, h_n = self.gru(x)
+        if self.return_sequences:
+            return output
+        return h_n.squeeze(0)
+
+
 class GRULayer(Layer):
     def __init__(self, layer_name, parameters: dict):
-        # Initialize layer data
+        # Initialize layer and base class
         self.reset()
         super().__init__(layer_name, parameters)
 
-        # Build layer data
+        # Get layer data from params dictionary
         self._data = super().build_data(self._data, parameters)
 
-        # Assert keras non-default variables are defined
+        # Assert non-default variables are defined
         assert self._data["units"] is not None
 
     # ==========================================================================
     # Methods
-    def build(self, hp):
-        # Set pyMAISE hyperparameter to keras-tuner hyperparameter
-        return GRU(**super().sample_parameters(self._data, hp))
+    def build(self, trial, in_size):
+        # Sample parameters and build PyTorch GRU module.
+        # Keras-only params (recurrent_activation, initializers, regularizers,
+        # constraints, go_backwards, stateful, unroll, reset_after) are
+        # silently dropped.
+        params = super().sample_parameters(self._data, trial)
+        hidden_size = params["units"]
+        return_sequences = params.get("return_sequences", False)
+        dropout = params.get("dropout", 0.0)
+        return _GRUBlock(in_size, hidden_size, return_sequences, dropout), hidden_size
 
     def reset(self):
         self._data = {
             "units": None,
-            "activation": "tanh",
-            "recurrent_activation": "sigmoid",
-            "use_bias": True,
-            "kernel_initializer": "glorot_uniform",
-            "recurrent_initializer": "orthogonal",
-            "bias_initializer": "zeros",
-            "kernel_regularizer": None,
-            "recurrent_regularizer": None,
-            "bias_regularizer": None,
-            "activity_regularizer": None,
-            "kernel_constraint": None,
-            "recurrent_constraint": None,
-            "bias_constraint": None,
-            "dropout": 0.0,
-            "recurrent_dropout": 0.0,
             "return_sequences": False,
-            "return_state": False,
-            "go_backwards": False,
-            "stateful": False,
-            "time_major": False,
-            "unroll": False,
-            "reset_after": True,
+            "dropout": 0.0,
+            "recurrent_dropout": 0.0,  # kept for API compat, ignored
         }
         super().reset()
 
@@ -54,11 +62,11 @@ class GRULayer(Layer):
 
     # ==========================================================================
     # Getters
-    def num_layers(self, hp):
-        return super().num_layers(hp)
+    def num_layers(self, trial):
+        return super().num_layers(trial)
 
-    def sublayer(self, hp):
-        return super().sublayer(hp)
+    def sublayer(self, trial):
+        return super().sublayer(trial)
 
     def wrapper(self):
         return super().wrapper()

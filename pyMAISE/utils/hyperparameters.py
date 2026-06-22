@@ -1,3 +1,6 @@
+import numpy as np
+
+
 class HyperParameters:
     def __init__(self, default=None, parent_name=None, parent_values=None):
         self._default = default
@@ -7,51 +10,36 @@ class HyperParameters:
 
 class Boolean(HyperParameters):
     """
-    Define a boolean hyperparameter. This is used in neural network hyperparameter
-    tuning.
-
-    Refer to
-    `KerasTuner's documentation <https://keras.io/api/keras_tuner/hyperparameters/>`_
-    for information on the arguments :cite:`chollet2015keras`.
+    Define a boolean hyperparameter for neural network hyperparameter tuning.
     """
 
     def __init__(self, default=None, parent_name=None, parent_values=None):
         HyperParameters.__init__(self, default, parent_name, parent_values)
 
-    # ===========================================================
-    # Methods
-    def hp(self, hp, hp_name):
-        """
-        Create an instance of ``keras_tuner.HyperParameters.Boolean``.
+    def sample(self, trial, hp_name):
+        """Sample this hyperparameter from an Optuna trial."""
+        return trial.suggest_categorical(name=hp_name, choices=[True, False])
 
-        Parameters
-        ----------
-        hp: keras_tuner.HyperParameters
-            Base hyperparameter class.
-        hp_name: str
-            Name of the hyperparameter.
-
-        Returns
-        -------
-        boolean_hp: keras_tuner.HyperParameters.Boolean
-            Boolean KerasTuner hyperparameter.
-        """
-        return hp.Boolean(
-            name=hp_name,
-            default=self._default,
-            parent_name=self._parent_name,
-            parent_values=self._parent_values,
-        )
+    def grid_values(self):
+        return [True, False]
 
 
 class Int(HyperParameters):
     """
-    Define an integer hyperparameter. This is used in neural network hyperparameter
-    tuning.
+    Define an integer hyperparameter for neural network hyperparameter tuning.
 
-    Refer to
-    `KerasTuner's documentation <https://keras.io/api/keras_tuner/hyperparameters/>`_
-    for information on the arguments :cite:`chollet2015keras`.
+    Parameters
+    ----------
+    min_value: int
+        Minimum value (inclusive).
+    max_value: int
+        Maximum value (inclusive).
+    step: int or None, default=None
+        Step between values. Defaults to 1.
+    sampling: {'linear', 'log', 'reverse_log'}, default='linear'
+        Distribution for sampling. Use 'log' for log-scale sampling.
+    default: int or None, default=None
+        Default value.
     """
 
     def __init__(
@@ -71,44 +59,38 @@ class Int(HyperParameters):
 
         HyperParameters.__init__(self, default, parent_name, parent_values)
 
-    # ===========================================================
-    # Methods
-    def hp(self, hp, hp_name):
-        """
-        Create an instance of ``keras_tuner.HyperParameters.Int``.
-
-        Parameters
-        ----------
-        hp: keras_tuner.HyperParameters
-            Base hyperparameter class.
-        hp_name: str
-            Name of the hyperparameter.
-
-        Returns
-        -------
-        int_hp: keras_tuner.HyperParameters.Int
-            Integer KerasTuner hyperparameter.
-        """
-        return hp.Int(
+    def sample(self, trial, hp_name):
+        """Sample this hyperparameter from an Optuna trial."""
+        log = self._sampling == "log"
+        return trial.suggest_int(
             name=hp_name,
-            min_value=self._min_value,
-            max_value=self._max_value,
-            step=self._step,
-            sampling=self._sampling,
-            default=self._default,
-            parent_name=self._parent_name,
-            parent_values=self._parent_values,
+            low=self._min_value,
+            high=self._max_value,
+            step=self._step or 1,
+            log=log,
         )
+
+    def grid_values(self):
+        step = self._step or 1
+        return list(range(self._min_value, self._max_value + 1, step))
 
 
 class Float(HyperParameters):
     """
-    Define an floating point hyperparameter. This is used in neural network
-    hyperparameter tuning.
+    Define a floating point hyperparameter for neural network hyperparameter tuning.
 
-    Refer to
-    `KerasTuner's documentation <https://keras.io/api/keras_tuner/hyperparameters/>`_
-    for information on the arguments :cite:`chollet2015keras`.
+    Parameters
+    ----------
+    min_value: float
+        Minimum value (inclusive).
+    max_value: float
+        Maximum value (inclusive).
+    step: float or None, default=None
+        Step between values. Required for grid search.
+    sampling: {'linear', 'log', 'reverse_log'}, default='linear'
+        Distribution for sampling. Use 'log' for log-scale sampling.
+    default: float or None, default=None
+        Default value.
     """
 
     def __init__(
@@ -128,44 +110,34 @@ class Float(HyperParameters):
 
         HyperParameters.__init__(self, default, parent_name, parent_values)
 
-    # ===========================================================
-    # Methods
-    def hp(self, hp, hp_name):
-        """
-        Create an instance of ``keras_tuner.HyperParameters.Float``.
-
-        Parameters
-        ----------
-        hp: keras_tuner.HyperParameters
-            Base hyperparameter class.
-        hp_name: str
-            Name of the hyperparameter.
-
-        Returns
-        -------
-        float_hp: keras_tuner.HyperParameters.Float
-            Float KerasTuner hyperparameter.
-        """
-        return hp.Float(
+    def sample(self, trial, hp_name):
+        """Sample this hyperparameter from an Optuna trial."""
+        log = self._sampling == "log"
+        return trial.suggest_float(
             name=hp_name,
-            min_value=self._min_value,
-            max_value=self._max_value,
+            low=self._min_value,
+            high=self._max_value,
             step=self._step,
-            sampling=self._sampling,
-            default=self._default,
-            parent_name=self._parent_name,
-            parent_values=self._parent_values,
+            log=log,
         )
+
+    def grid_values(self):
+        if self._step is None:
+            raise ValueError(
+                f"Float hyperparameter requires a 'step' for grid search. "
+                f"Use Choice([...]) for discrete float values."
+            )
+        return list(np.arange(self._min_value, self._max_value + self._step / 2, self._step))
 
 
 class Choice(HyperParameters):
     """
-    Define choice hyperparameter. This is used in neural network hyperparameter tuning.
-    This can be used for string or other parameters where a range is not applicable.
+    Define a categorical choice hyperparameter for neural network hyperparameter tuning.
 
-    Refer to
-    `KerasTuner's documentation <https://keras.io/api/keras_tuner/hyperparameters/>`_
-    for information on the arguments :cite:`chollet2015keras`.
+    Parameters
+    ----------
+    values: list
+        The possible choices (strings, ints, floats, or bools).
     """
 
     def __init__(
@@ -176,50 +148,27 @@ class Choice(HyperParameters):
 
         HyperParameters.__init__(self, default, parent_name, parent_values)
 
-    # ===========================================================
-    # Methods
-    def hp(self, hp, hp_name):
-        """
-        Create an instance of ``keras_tuner.HyperParameters.Choice``.
+    def sample(self, trial, hp_name):
+        """Sample this hyperparameter from an Optuna trial."""
+        return trial.suggest_categorical(name=hp_name, choices=self._values)
 
-        Parameters
-        ----------
-        hp: keras_tuner.HyperParameters
-            Base hyperparameter class.
-        hp_name: str
-            Name of the hyperparameter.
+    def grid_values(self):
+        return list(self._values)
 
-        Returns
-        -------
-        choice_hp: keras_tuner.HyperParameters.Choice
-            Choice KerasTuner hyperparameter.
-        """
-        return hp.Choice(
-            name=hp_name,
-            values=self._values,
-            ordered=self._ordered,
-            default=self._default,
-            parent_name=self._parent_name,
-            parent_values=self._parent_values,
-        )
-
-    # ===========================================================
-    # Getters
     @property
     def values(self):
-        """
-        : list of int, float, str, or bool: The possible choices for the hyperparameter.
-        """
+        """list: The possible choices for this hyperparameter."""
         return self._values
 
 
 class Fixed(HyperParameters):
     """
-    Define fixed hyperparameter. This is used in neural network hyperparameter tuning.
+    Define a fixed (non-tunable) hyperparameter.
 
-    Refer to
-    `KerasTuner's documentation <https://keras.io/api/keras_tuner/hyperparameters/>`_
-    for information on the arguments :cite:`chollet2015keras`.
+    Parameters
+    ----------
+    value: any
+        The fixed value.
     """
 
     def __init__(self, value, parent_name=None, parent_values=None):
@@ -229,27 +178,9 @@ class Fixed(HyperParameters):
             self, parent_name=parent_name, parent_values=parent_values
         )
 
-    # ===========================================================
-    # Methods
-    def hp(self, hp, hp_name):
-        """
-        Create an instance of ``keras_tuner.HyperParameters.Fixed``.
+    def sample(self, trial, hp_name):
+        """Return the fixed value (no sampling)."""
+        return self._value
 
-        Parameters
-        ----------
-        hp: keras_tuner.HyperParameters
-            Base hyperparameter class.
-        hp_name: str
-            Name of the hyperparameter.
-
-        Returns
-        -------
-        fixed_hp: keras_tuner.HyperParameters.Fixed
-            Fixed KerasTuner hyperparameter.
-        """
-        return hp.Fixes(
-            name=hp_name,
-            value=self._value,
-            parent_name=self._parent_name,
-            parent_values=self._parent_values,
-        )
+    def grid_values(self):
+        return [self._value]
