@@ -323,12 +323,29 @@ class Tuner:
                 self._models[model] = copy.deepcopy(
                     self.supported_classical_models[model]
                 )(parameters=parameters)
+
+            elif model in ("DeepEnsemble", "DE"):
+                from pyMAISE.methods.nn import DeepEnsembleHyperModel
+
+                num_models = 5
+                if parameters and "num_models" in parameters:
+                    parameters = copy.deepcopy(parameters)
+                    num_models = parameters.pop("num_models")
+
+                self._models[model] = DeepEnsembleHyperModel(
+                    parameters=parameters,
+                    input_shape=self._xtrain.shape[1:],
+                    name=model,
+                    num_models=num_models,
+                )
+
             else:
                 self._models[model] = copy.deepcopy(nnHyperModel)(
                     parameters=parameters,
                     input_shape=self._xtrain.shape[1:],
                     name=model,
                 )
+
 
     # ===========================================================
     # Methods

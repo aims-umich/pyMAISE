@@ -55,6 +55,15 @@ def _run_fold_subprocess(
     if problem_type == ProblemType.CLASSIFICATION:
         yval_pred = _dcfp(yval_pred, y_all)
 
+    # Heteroscedastic (e.g. NLL) models output [mean | variance] concatenated,
+    # so predict() returns twice the target width. Score against the mean
+    # half only -- sklearn regression metrics expect matching widths.
+    if (
+        problem_type == ProblemType.REGRESSION
+        and yval_pred.shape[-1] == 2 * yval.shape[-1]
+    ):
+        yval_pred = yval_pred[..., : yval.shape[-1]]
+
     if metrics is not None:
         return float(
             metrics(
@@ -265,6 +274,15 @@ class NNTuner:
 
         if settings.values.problem_type == settings.ProblemType.CLASSIFICATION:
             yval_pred = determine_class_from_probabilities(yval_pred, y_all)
+
+        # Heteroscedastic (e.g. NLL) models output [mean | variance] concatenated,
+        # so predict() returns twice the target width. Score against the mean
+        # half only -- sklearn regression metrics expect matching widths.
+        if (
+            settings.values.problem_type == settings.ProblemType.REGRESSION
+            and yval_pred.shape[-1] == 2 * yval.shape[-1]
+        ):
+            yval_pred = yval_pred[..., : yval.shape[-1]]
 
         if self._metrics is not None:
             return float(

@@ -90,6 +90,12 @@ class PostProcessor:
                     configs[0]["params"]
                 )
 
+        # If the model is a DeepEnsemble, this sets the build method to return the entire
+        # collection of trained models, opposed to just the single model required by the Tuner.
+        for wrapper in model_wrappers:
+            if hasattr(wrapper, "ensemble_mode"):
+                wrapper.ensemble_mode = True
+
         # Create models DataFrame
         self._models = pd.DataFrame(
             {
