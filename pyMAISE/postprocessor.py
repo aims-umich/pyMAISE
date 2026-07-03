@@ -24,6 +24,7 @@ from sklearn.metrics import (
 from tqdm.auto import tqdm
 
 import pyMAISE.settings as settings
+from pyMAISE.methods.nn import DeepEnsemble, DeepEnsembleHyperModel
 from pyMAISE.tuner import Tuner
 from pyMAISE.utils import _try_clear
 from pyMAISE.utils.trial import determine_class_from_probabilities
@@ -112,7 +113,7 @@ class PostProcessor:
 
         # Fit each model to training data and get predicted training
         # and testing from each model
-        yhat_train, yhat_test, histories = self._fit()
+        yhat_train, yhat_test, ystd_train, ystd_test, histories = self._fit()
 
         # Scale predicted data if scaler is given
         self._yscaler = yscaler
@@ -129,6 +130,8 @@ class PostProcessor:
                     {
                         "Train Yhat": yhat_train,
                         "Test Yhat": yhat_test,
+                        "Train Ystd": ystd_train,
+                        "Test Ystd": ystd_test,
                         "History": histories,
                     }
                 ),
@@ -159,6 +162,8 @@ class PostProcessor:
         # Array for trainig and testing prediceted outcomes
         yhat_train = []
         yhat_test = []
+        ystd_train = []
+        ystd_test = []
         histories = []
 
         # Progress bar
@@ -208,6 +213,8 @@ class PostProcessor:
                         -1, self._ytest.shape[-1]
                     )
                 )
+                ystd_train.append(None)
+                ystd_test.append(None)
 
             else:
                 # Neural network models: reconstruct the exact trial from the
@@ -255,7 +262,17 @@ class PostProcessor:
                         ).reshape(-1, self._ytest.shape[-1])
                     )
 
-        return (yhat_train, yhat_test, histories)
+                # Store STD for uncertainty models: deep ensemble
+                if hasattr(regressor, "predict_with_uncertainty"):
+                    unc_train = regressor.predict_with_uncertainty(self._xtrain.values)
+                    unc_test = regressor.predict_with_uncertainty(self._xtest.values)
+                    ystd_train.append(np.sqrt(unc_train["epistemic_var"]))
+                    ystd_test.append(np.sqrt(unc_test["epistemic_var"]))
+                else:
+                    ystd_train.append(None)
+                    ystd_test.append(None)
+
+        return (yhat_train, yhat_test, ystd_train, ystd_test, histories)
 
     def metrics(
         self, y=None, model_type=None, metrics=None, sort_by=None, direction=None
@@ -773,7 +790,7 @@ class PostProcessor:
         return regressor
 
     def diagonal_validation_plot(
-        self, ax=None, y=None, idx=None, model_type=None, sort_by=None, direction=None
+        self, ax=None, y=None, idx=None, model_type=None, sort_by=None, direction=None, show_uncertainty=True,
     ):
         """
         Create a diagonal validation plot for a given model.
@@ -837,13 +854,44 @@ class PostProcessor:
                 ytrain[..., y_idx],
                 c="b",
                 marker="o",
+                s=5,
             )
             ax.scatter(
                 self._models["Test Yhat"][idx][..., y_idx],
                 ytest[..., y_idx],
                 c="r",
                 marker="o",
+                s=5,
             )
+
+            # Plotting of uncertainty error bars for supported UQ models
+            if show_uncertainty and self._models["Test Ystd"][idx] is not None:
+                train_ystd = self._models["Train Ystd"][idx].copy()
+                test_ystd = self._models["Test Ystd"][idx].copy()
+                if self._yscaler is not None:
+                    train_ystd = train_ystd / self._yscaler.scale_
+                    test_ystd = test_ystd / self._yscaler.scale_
+
+                ax.errorbar(
+                    self._models["Train Yhat"][idx][..., y_idx],
+                    ytrain[..., y_idx],
+                    yerr=train_ystd[..., y_idx],
+                    fmt="none",
+                    ecolor="b",
+                    alpha=0.5,
+                    capsize=0,
+                    elinewidth=1,
+                )
+                ax.errorbar(
+                    self._models["Test Yhat"][idx][..., y_idx],
+                    ytest[..., y_idx],
+                    yerr=test_ystd[..., y_idx],
+                    fmt="none",
+                    ecolor="r",
+                    alpha=0.5,
+                    capsize=0,
+                    elinewidth=1,
+                )
 
         lims = [
             np.min([ax.get_xlim(), ax.get_ylim()]),

@@ -20,6 +20,8 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 
+from pyMAISE.methods.nn import DeepEnsemble
+
 # scikit-optimize 0.9.0 uses np.int which was removed in numpy 1.24.
 # Patch before importing skopt so users aren't hit by the AttributeError.
 if not hasattr(np, "int"):
