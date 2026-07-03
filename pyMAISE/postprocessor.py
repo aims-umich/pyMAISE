@@ -1053,7 +1053,7 @@ class PostProcessor:
 
         history = self._models["History"][idx]
 
-        if show_uncertainty and "loss_std" in history:
+        if show_uncertainty and "val_loss_std" in history:
             loss = np.array(history["loss"])
             loss_std = np.array(history["loss_std"])
             val_loss = np.array(history["val_loss"])

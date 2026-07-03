@@ -389,5 +389,6 @@ class DeepEnsembleHyperModel(nnHyperModel):
         history = super(DeepEnsembleHyperModel, self).fit(trial, model, x, y)
         if self.ensemble_mode:
             history["loss_std"] = list(model.history[:, "train_loss_std"])
-            history["val_loss_std"] = list(model.history[:, "valid_loss_std"])
+            if len(model.history) > 0 and "valid_loss_std" in model.history[0]:
+                history["val_loss_std"] = list(model.history[:, "valid_loss_std"])
         return history
