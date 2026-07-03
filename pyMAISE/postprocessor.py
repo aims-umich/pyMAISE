@@ -816,6 +816,9 @@ class PostProcessor:
         direction: 'min', 'max', or None, default=None
             The direction to ``sort_by``. It is only required if ``sort_by`` is not
             a default metric.
+        show_uncertainty: bool, default=True
+            Show uncertainty features when models support it (currently supports DE).
+
 
         Returns
         -------
@@ -912,6 +915,7 @@ class PostProcessor:
         model_type=None,
         sort_by=None,
         direction=None,
+        show_uncertainty=True,
     ):
         """
         Create a validation plot for a given model.
@@ -937,6 +941,8 @@ class PostProcessor:
         direction: 'min', 'max', or None, default=None
             The direction to ``sort_by``. It is only required if ``sort_by`` is not
             a default metric.
+        show_uncertainty: bool, default=True
+            Show uncertainty features when models support it (currently supports DE).
 
         Returns
         -------
@@ -952,7 +958,7 @@ class PostProcessor:
         if not isinstance(y, list):
             y = [y] if y is not None else list(range(self._ytrain.shape[-1]))
 
-        # Get prediected and actual outputs
+        # Get predicted and actual outputs
         ytest = self._ytest.values
         yhat_test = self._models["Test Yhat"][idx]
 
@@ -970,11 +976,28 @@ class PostProcessor:
                     self._ytest.coords[self._ytest.dims[-1]].values == y_idx
                 )[0]
 
-            ax.scatter(
+            scatter = ax.scatter(
                 np.linspace(1, ytest.shape[0], ytest.shape[0]),
                 np.abs((ytest[:, y_idx] - yhat_test[:, y_idx]) / ytest[:, y_idx]) * 100,
                 label=self._ytest.coords[self._ytest.dims[-1]].values[y_idx],
             )
+
+            # Plotting of uncertainty error bars for supported UQ models
+            if (y_std := self._verify_get_uncertainty(show_uncertainty, idx)) is not None:
+                _, test_ystd = y_std
+                y = np.abs((ytest[:, y_idx] - yhat_test[:, y_idx]) / ytest[:, y_idx]) * 100
+
+                ax.errorbar(
+                    np.linspace(1, ytest.shape[0], ytest.shape[0]),
+                    y,
+                    yerr=test_ystd[..., y_idx],
+                    fmt="none",
+                    ecolor=scatter.get_facecolor()[0],
+                    alpha=0.5,
+                    capsize=0,
+                    elinewidth=1,
+                )
+                ax.set_ylim(np.min(y))
 
         if len(y) > 1:
             ax.legend()
@@ -1298,8 +1321,10 @@ class PostProcessor:
 
         Parameters
         ----------
-        show_uncertainty: parameter passed from parent visualization parameter
-        idx: model index from self._get_index
+        show_uncertainty: bool
+            parameter passed from parent visualization parameter
+        idx: int
+            model index from self._get_index
 
         Returns
         -------
