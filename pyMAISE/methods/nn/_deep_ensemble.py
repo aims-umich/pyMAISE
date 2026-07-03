@@ -6,7 +6,6 @@ import numpy as np
 import warnings
 
 import torch
-from overrides import override
 from skorch.history import History
 
 from pyMAISE import settings
@@ -377,7 +376,6 @@ class DeepEnsembleHyperModel(nnHyperModel):
         )
         return ensemble_model
 
-    @override
     def fit(self, trial, model, x, y):
         """
         Overrides the fit method if the model is in ensemble mode to return
