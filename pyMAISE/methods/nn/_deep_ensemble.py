@@ -6,6 +6,7 @@ import numpy as np
 import warnings
 
 import torch
+from overrides import override
 from skorch.history import History
 
 from pyMAISE import settings
@@ -216,17 +217,15 @@ class DeepEnsemble:
             self.history.new_epoch()
 
             # Training loss
-            avg_train_loss = np.mean(
-                [hist[i, "train_loss"] for hist in all_history]
-            )
-            self.history.record("train_loss", avg_train_loss)
+            losses = [hist[i, "train_loss"] for hist in all_history]
+            self.history.record("train_loss", np.mean(losses))
+            self.history.record("train_loss_std", np.std(losses))
 
             # Validation loss
             if "valid_loss" in all_history[0][i]:
-                avg_val_loss = np.mean(
-                    [hist[i, "valid_loss"] for hist in all_history]
-                )
-                self.history.record("valid_loss", avg_val_loss)
+                val_losses = [hist[i, "valid_loss"] for hist in all_history]
+                self.history.record("valid_loss", np.mean(val_losses))
+                self.history.record("valid_loss_std", np.std(val_losses))
 
     def _predict_stacked(self, x: Any) -> np.ndarray:
         """
@@ -377,3 +376,20 @@ class DeepEnsembleHyperModel(nnHyperModel):
             heteroscedastic=self._compilation_params.get("loss") == "nll"
         )
         return ensemble_model
+
+    @override
+    def fit(self, trial, model, x, y):
+        """
+        Overrides the fit method if the model is in ensemble mode to return
+        the STD of the loss and validation loss.
+
+        Returns
+        -------
+        history: History
+
+        """
+        history = super(DeepEnsembleHyperModel, self).fit(trial, model, x, y)
+        if self.ensemble_mode:
+            history["loss_std"] = list(model.history[:, "train_loss_std"])
+            history["val_loss_std"] = list(model.history[:, "valid_loss_std"])
+        return history

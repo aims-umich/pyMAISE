@@ -1008,7 +1008,7 @@ class PostProcessor:
         return ax
 
     def nn_learning_plot(
-        self, ax=None, idx=None, model_type=None, sort_by=None, direction=None
+        self, ax=None, idx=None, model_type=None, sort_by=None, direction=None, show_uncertainty=True,
     ):
         """
         Create a learning plot for a given neural network.
@@ -1032,6 +1032,8 @@ class PostProcessor:
         direction: 'min', 'max', or None, default=None
             The direction to ``sort_by``. It is only required if ``sort_by`` is not
             a default metric.
+        show_uncertainty: bool, default=True
+            Show uncertainty features when models support it (currently supports DE).
 
         Returns
         -------
@@ -1051,8 +1053,30 @@ class PostProcessor:
 
         history = self._models["History"][idx]
 
-        ax.plot(history["loss"], label="Training")
-        ax.plot(history["val_loss"], label="Validation")
+        if show_uncertainty and "loss_std" in history:
+            loss = np.array(history["loss"])
+            loss_std = np.array(history["loss_std"])
+            val_loss = np.array(history["val_loss"])
+            val_loss_std = np.array(history["val_loss_std"])
+            epochs = np.arange(len(history["loss"]))
+
+            ax.fill_between(
+                epochs,
+                loss - loss_std,
+                loss + loss_std,
+                alpha=0.2,
+                color="b",
+            )
+            ax.fill_between(
+                epochs,
+                val_loss - val_loss_std,
+                val_loss + val_loss_std,
+                alpha=0.2,
+                color="y",
+            )
+
+        ax.plot(history["loss"], label="Training", color="b")
+        ax.plot(history["val_loss"], label="Validation", color='y')
         ax.legend()
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss")
