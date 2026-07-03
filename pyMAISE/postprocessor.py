@@ -865,12 +865,8 @@ class PostProcessor:
             )
 
             # Plotting of uncertainty error bars for supported UQ models
-            if show_uncertainty and self._models["Test Ystd"][idx] is not None:
-                train_ystd = self._models["Train Ystd"][idx].copy()
-                test_ystd = self._models["Test Ystd"][idx].copy()
-                if self._yscaler is not None:
-                    train_ystd = train_ystd / self._yscaler.scale_
-                    test_ystd = test_ystd / self._yscaler.scale_
+            if (y_std := self._verify_get_uncertainty(show_uncertainty, idx)) is not None:
+                train_ystd, test_ystd = y_std
 
                 ax.errorbar(
                     self._models["Train Yhat"][idx][..., y_idx],
@@ -1294,3 +1290,29 @@ class PostProcessor:
         axs[1].set_title("Testing Set")
 
         return axs
+
+    def _verify_get_uncertainty(self, show_uncertainty: bool, idx: int) -> tuple | None:
+        """
+        Verify that uncertainty is enabled by user and available within the model,
+        and return the scaled uncertainty.
+
+        Parameters
+        ----------
+        show_uncertainty: parameter passed from parent visualization parameter
+        idx: model index from self._get_index
+
+        Returns
+        -------
+        (train_ystd, test_ystd) | None: If uncertainty is available and ensemble, the
+                                        scaled uncertainty is returned. Otherwise, None
+                                        is returned.
+
+        """
+        if show_uncertainty and self._models["Test Ystd"][idx] is not None:
+            train_ystd = self._models["Train Ystd"][idx].copy()
+            test_ystd = self._models["Test Ystd"][idx].copy()
+            if self._yscaler is not None:
+                train_ystd = train_ystd / self._yscaler.scale_
+                test_ystd = test_ystd / self._yscaler.scale_
+            return train_ystd, test_ystd
+        return None
