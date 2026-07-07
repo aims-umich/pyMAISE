@@ -1445,11 +1445,13 @@ class PostProcessor:
 
         # Obtain/refit model
         if model is None:
-            import warnings
-            warnings.warn(
-                "Model not provided; retraining model configurations to extract member predictions...",
-                UserWarning,
-            )
+            if not getattr(self, "_warned_retrain", False):
+                import warnings
+                warnings.warn(
+                    "Model not provided; retraining model configurations to extract member predictions...",
+                    UserWarning,
+                )
+                self._warned_retrain = True
             model = self.get_model(idx=idx)
 
         # Extract predictions and variances

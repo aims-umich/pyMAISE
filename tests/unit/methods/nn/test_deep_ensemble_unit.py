@@ -41,6 +41,16 @@ def test_predict_with_uncertainty_regression():
 
 
 def test_predict_with_uncertainty_heteroscedastic():
+    """
+    Verifies predict_with_uncertainty() correctly splits the doubled output
+    [mean | raw_variance], applies softplus to the variance half, then
+    averages across members.
+
+    Raw variance values (0.1, 0.2, 0.3, 0.4) are small positives chosen
+    to exercise the softplus transform non-trivially. Softplus is used
+    because the network's linear output is unconstrained (can be negative)
+    and GaussianNLLLoss requires strictly a positive variance.
+    """
     # n_targets = 1, so 2 outputs per prediction: [mean, variance]
     m1 = MockModel(predictions=[[1.0, 0.1], [3.0, 0.2]])
     m2 = MockModel(predictions=[[3.0, 0.3], [5.0, 0.4]])
@@ -64,6 +74,15 @@ def test_predict_with_uncertainty_heteroscedastic():
 
 
 def test_predict_with_uncertainty_classification():
+    """
+    Verifies that epistemic uncertainty for classification is computed as
+    predictive entropy: -sum(p * log(p)) over class probabilities.
+
+    The second sample ([0.5, 0.5] for both members) shows maximum
+    uncertainty for a 2-class problem. Entropy is highest when the model
+    is completely unsure between classes. The 1e-10 epsilon prevents
+    log(0) for any zero-probability class.
+    """
     # 2 classes
     m1 = MockModel(predictions=[[0.9, 0.1], [0.5, 0.5]])
     m2 = MockModel(predictions=[[0.7, 0.3], [0.5, 0.5]])
