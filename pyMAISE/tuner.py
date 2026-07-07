@@ -326,7 +326,8 @@ class Tuner:
                     self.supported_classical_models[model]
                 )(parameters=parameters)
 
-            elif model in ("DeepEnsemble", "DE"):
+            # Deep Ensemble
+            elif model == "DE":
                 from pyMAISE.methods.nn import DeepEnsembleHyperModel
 
                 num_models = 5

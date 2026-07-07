@@ -24,7 +24,6 @@ from sklearn.metrics import (
 from tqdm.auto import tqdm
 
 import pyMAISE.settings as settings
-from pyMAISE.methods.nn import DeepEnsemble, DeepEnsembleHyperModel
 from pyMAISE.tuner import Tuner
 from pyMAISE.utils import _try_clear
 from pyMAISE.utils.trial import determine_class_from_probabilities
@@ -982,22 +981,29 @@ class PostProcessor:
                 label=self._ytest.coords[self._ytest.dims[-1]].values[y_idx],
             )
 
-            # Plotting of uncertainty error bars for supported UQ models
-            if (y_std := self._verify_get_uncertainty(show_uncertainty, idx)) is not None:
-                _, test_ystd = y_std
-                y = np.abs((ytest[:, y_idx] - yhat_test[:, y_idx]) / ytest[:, y_idx]) * 100
+        # Get y-limits set by the scatter plot
+        y_limits = ax.get_ylim()
 
-                ax.errorbar(
-                    np.linspace(1, ytest.shape[0], ytest.shape[0]),
-                    y,
-                    yerr=test_ystd[..., y_idx],
-                    fmt="none",
-                    ecolor=scatter.get_facecolor()[0],
-                    alpha=0.5,
-                    capsize=0,
-                    elinewidth=1,
-                )
-                ax.set_ylim(np.min(y))
+        # Plotting of uncertainty error bars for supported UQ models
+        if (y_std := self._verify_get_uncertainty(show_uncertainty, idx)) is not None:
+            _, test_ystd = y_std
+            y = np.abs((ytest[:, y_idx] - yhat_test[:, y_idx]) / ytest[:, y_idx]) * 100
+
+            # Convert raw standard deviation to percentage relative uncertainty
+            rel_yerr = (test_ystd[..., y_idx] / np.abs(ytest[:, y_idx])) * 100
+
+
+            ax.errorbar(
+                np.linspace(1, ytest.shape[0], ytest.shape[0]),
+                np.ravel(y),
+                yerr=np.ravel(rel_yerr),
+                fmt="none",
+                ecolor=scatter.get_facecolor()[0],
+                alpha=0.5,
+                capsize=0,
+                elinewidth=1,
+            )
+            ax.set_ylim(y_limits)
 
         if len(y) > 1:
             ax.legend()
@@ -1365,3 +1371,168 @@ class PostProcessor:
                 test_ystd = test_ystd / self._yscaler.scale_
             return train_ystd, test_ystd
         return None
+
+    def ensemble_uncertainty_plot(
+        self,
+        x_feature=None,
+        y=None,
+        ax=None,
+        idx=None,
+        model=None,
+        model_type="DE",
+        sort_by=None,
+        direction=None,
+        num_std=2,
+    ):
+        """
+        Create a 1D slice validation plot showing deep ensemble predictions,
+        individual member predictions (epistemic), and data noise (aleatoric) if available.
+
+        Parameters
+        ----------
+        x_feature: str or int or None, default=None
+            The input feature to plot on the x-axis. If None, defaults to the first feature.
+        y: str or int or None, default=None
+            The output target variable to plot on the y-axis. If None, plots the first output.
+        ax: matplotlib.pyplot.axis or None, default=None
+            Matplotlib axis to plot on.
+        idx: int or None, default=None
+            The index in the models DataFrame.
+        model: DeepEnsemble or None, default=None
+            A pre-fitted DeepEnsemble model instance. If None, the model is refit.
+        model_type: str, default="DE"
+            The model name to look up.
+        sort_by: str or None, default=None
+            Metric to sort model configurations.
+        direction: str or None, default=None
+            Sorting direction ('min' or 'max').
+        num_std: float, default=2
+            Number of standard deviations to plot for the aleatoric noise band.
+        """
+        # Determine the index of the model in the DataFrame
+        idx = self._get_idx(
+            idx=idx, model_type=model_type, sort_by=sort_by, direction=direction
+        )
+
+        # Get actual target y_idx
+        ytest = self._ytest.values
+        if y is None:
+            y_idx = 0
+        else:
+            if isinstance(y, str):
+                y_idx = np.where(
+                    self._ytest.coords[self._ytest.dims[-1]].values == y
+                )[0]
+                if len(y_idx) == 0:
+                    raise ValueError(f"Target variable {y} not found in output data.")
+                y_idx = y_idx[0]
+            else:
+                y_idx = y
+
+        # Get input feature x_idx
+        if x_feature is None:
+            x_idx = 0
+        else:
+            if isinstance(x_feature, str):
+                x_idx = np.where(
+                    self._xtest.coords[self._xtest.dims[-1]].values == x_feature
+                )[0]
+                if len(x_idx) == 0:
+                    raise ValueError(f"Feature {x_feature} not found in input data.")
+                x_idx = x_idx[0]
+            else:
+                x_idx = x_feature
+
+        # Obtain/refit model
+        if model is None:
+            import warnings
+            warnings.warn(
+                "Model not provided; retraining model configurations to extract member predictions...",
+                UserWarning,
+            )
+            model = self.get_model(idx=idx)
+
+        # Extract predictions and variances
+        unc = model.predict_with_uncertainty(self._xtest.values)
+
+        # Separate member predictions
+        if getattr(model, "heteroscedastic", False):
+            # heteroscedastic mode returns member predictions of shape (n_models, n_samples, 2*n_targets)
+            # using torch backend split_mean_var
+            import torch
+            from pyMAISE.methods.nn._utils import split_mean_var
+            member_means_t, _ = split_mean_var(torch.from_numpy(unc["predictions"]))
+            member_means = member_means_t.numpy()
+        else:
+            member_means = unc["predictions"]
+
+        mean_preds = unc["mean"]
+        aleatoric_var = unc["aleatoric_var"]
+
+        # Inverse transform scaling if yscaler is present (regression only)
+        is_regression = settings.values.problem_type == settings.ProblemType.REGRESSION
+        if is_regression and self._yscaler is not None:
+            # Scale mean predictions and true targets
+            mean_preds = self._yscaler.inverse_transform(mean_preds.reshape(-1, mean_preds.shape[-1]))
+            ytest = self._yscaler.inverse_transform(ytest.reshape(-1, ytest.shape[-1]))
+
+            # Scale member predictions
+            orig_shape = member_means.shape
+            member_means_flat = member_means.reshape(-1, orig_shape[-1])
+            member_means_scaled = self._yscaler.inverse_transform(member_means_flat)
+            member_means = member_means_scaled.reshape(orig_shape)
+
+            # Scale aleatoric variance (var_scaled = var * (1 / scale)**2)
+            if aleatoric_var is not None:
+                scale = self._yscaler.scale_
+                aleatoric_var = aleatoric_var * (1.0 / scale)**2
+
+        # Extract 1D arrays for plotting
+        x_vals = self._xtest.values[:, x_idx]
+        true_y = ytest[:, y_idx]
+        mean_y = mean_preds[:, y_idx]
+        member_y = member_means[:, :, y_idx]
+
+        # Sort indices by x_vals
+        sort_idx = np.argsort(x_vals)
+        sorted_x = x_vals[sort_idx]
+        sorted_true_y = true_y[sort_idx]
+        sorted_mean_y = mean_y[sort_idx]
+        sorted_member_y = member_y[:, sort_idx]
+
+        # Plot
+        if ax is None:
+            ax = plt.gca()
+
+        # Scatter plot of true data
+        scatter = ax.scatter(sorted_x, sorted_true_y, c="black", marker="o", label="True Data")
+
+        # Plot individual ensemble members (epistemic spread)
+        # Note: only label the first one to avoid polluting the legend
+        for m_idx in range(sorted_member_y.shape[0]):
+            label = "Ensemble Members" if m_idx == 0 else ""
+            ax.plot(sorted_x, sorted_member_y[m_idx], color="blue", alpha=0.2, linestyle="--", label=label)
+
+        # Plot ensemble mean
+        ax.plot(sorted_x, sorted_mean_y, color="blue", linewidth=2, label="Ensemble Mean")
+
+        # Shaded uncertainty band (aleatoric) - Regression only
+        if is_regression and aleatoric_var is not None:
+            std_y = np.sqrt(aleatoric_var[:, y_idx])
+            sorted_std_y = std_y[sort_idx]
+            ax.fill_between(
+                sorted_x,
+                sorted_mean_y - num_std * sorted_std_y,
+                sorted_mean_y + num_std * sorted_std_y,
+                color="orange",
+                alpha=0.15,
+                label=f"Data Noise (+/- {num_std} std)",
+            )
+
+        ax.legend()
+        feature_name = self._xtest.coords[self._xtest.dims[-1]].values[x_idx] if hasattr(self._xtest, "coords") else f"Feature {x_idx}"
+        target_name = self._ytest.coords[self._ytest.dims[-1]].values[y_idx] if hasattr(self._ytest, "coords") else f"Target {y_idx}"
+        ax.set_xlabel(feature_name)
+        ax.set_ylabel(target_name)
+
+        return ax
