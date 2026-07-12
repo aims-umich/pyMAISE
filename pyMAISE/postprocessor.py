@@ -871,9 +871,9 @@ class PostProcessor:
                 train_ystd, test_ystd = y_std
 
                 ax.errorbar(
-                    self._models["Train Yhat"][idx][..., y_idx],
-                    ytrain[..., y_idx],
-                    yerr=train_ystd[..., y_idx],
+                    np.ravel(self._models["Train Yhat"][idx][..., y_idx]),
+                    np.ravel(ytrain[..., y_idx]),
+                    yerr=np.ravel(train_ystd[..., y_idx]),
                     fmt="none",
                     ecolor="b",
                     alpha=0.5,
@@ -881,9 +881,9 @@ class PostProcessor:
                     elinewidth=1,
                 )
                 ax.errorbar(
-                    self._models["Test Yhat"][idx][..., y_idx],
-                    ytest[..., y_idx],
-                    yerr=test_ystd[..., y_idx],
+                    np.ravel(self._models["Test Yhat"][idx][..., y_idx]),
+                    np.ravel(ytest[..., y_idx]),
+                    yerr=np.ravel(test_ystd[..., y_idx]),
                     fmt="none",
                     ecolor="r",
                     alpha=0.5,
