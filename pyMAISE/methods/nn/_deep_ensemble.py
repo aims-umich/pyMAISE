@@ -381,10 +381,20 @@ class DeepEnsembleHyperModel(nnHyperModel):
         Overrides the fit method if the model is in ensemble mode to return
         the STD of the loss and validation loss.
 
+        Parameters
+        ----------
+        trial : Any
+            The hyperparameter trial object.
+        model : DeepEnsemble or Model
+            The model instance to fit.
+        x : Any
+            Input features.
+        y : Any
+            Target values.
+
         Returns
         -------
         history: History
-
         """
         history = super(DeepEnsembleHyperModel, self).fit(trial, model, x, y)
         if self.ensemble_mode:
