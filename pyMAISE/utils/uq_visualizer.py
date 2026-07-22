@@ -394,9 +394,9 @@ class UQVisualizer:
         model,
         train_yhat,
         test_yhat,
-        ytrain,
-        ytest,
-        y_idx: int,
+        ytrain=None,
+        ytest=None,
+        y_idx: int = 0,
         relative: bool = False,
     ):
         """

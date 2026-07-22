@@ -976,7 +976,7 @@ class PostProcessor:
                 model=model,
                 train_yhat=self._models["Train Yhat"][idx],
                 test_yhat=self._models["Test Yhat"][idx],
-                ytrain=ytrain,
+                ytrain=self._ytrain.values,
                 ytest=ytest,
                 y_idx=y_idx,
                 relative=True,
