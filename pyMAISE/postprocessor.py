@@ -26,6 +26,7 @@ from tqdm.auto import tqdm
 import pyMAISE.settings as settings
 from pyMAISE.tuner import Tuner
 from pyMAISE.utils import _try_clear
+from pyMAISE.utils.uq_visualizer import UQVisualizer
 from pyMAISE.utils.trial import determine_class_from_probabilities
 
 
@@ -59,6 +60,7 @@ class PostProcessor:
     ):
         # Extract data
         self._xtrain, self._xtest, self._ytrain, self._ytest = data
+        self._uq_visualizer = None
 
         # Initialize lists
         model_types = []
@@ -90,10 +92,11 @@ class PostProcessor:
                     configs[0]["params"]
                 )
 
-        # If the model is a DeepEnsemble, this sets the build method to return the entire
-        # collection of trained models, opposed to just the single model required by the Tuner.
+        # Deep Ensembles
         for wrapper in model_wrappers:
             if hasattr(wrapper, "ensemble_mode"):
+                # If the model is a DeepEnsemble, this sets the build method to return the entire
+                # collection of trained models, opposed to just the single model required by the Tuner.
                 wrapper.ensemble_mode = True
 
         # Create models DataFrame
@@ -112,7 +115,7 @@ class PostProcessor:
 
         # Fit each model to training data and get predicted training
         # and testing from each model
-        yhat_train, yhat_test, ystd_train, ystd_test, histories = self._fit()
+        yhat_train, yhat_test, histories = self._fit()
 
         # Scale predicted data if scaler is given
         self._yscaler = yscaler
@@ -129,8 +132,6 @@ class PostProcessor:
                     {
                         "Train Yhat": yhat_train,
                         "Test Yhat": yhat_test,
-                        "Train Ystd": ystd_train,
-                        "Test Ystd": ystd_test,
                         "History": histories,
                     }
                 ),
@@ -161,8 +162,6 @@ class PostProcessor:
         # Array for trainig and testing prediceted outcomes
         yhat_train = []
         yhat_test = []
-        ystd_train = []
-        ystd_test = []
         histories = []
 
         # Progress bar
@@ -212,8 +211,6 @@ class PostProcessor:
                         -1, self._ytest.shape[-1]
                     )
                 )
-                ystd_train.append(None)
-                ystd_test.append(None)
 
             else:
                 # Neural network models: reconstruct the exact trial from the
@@ -261,17 +258,7 @@ class PostProcessor:
                         ).reshape(-1, self._ytest.shape[-1])
                     )
 
-                # Store STD for uncertainty models: deep ensemble
-                if hasattr(regressor, "predict_with_uncertainty"):
-                    unc_train = regressor.predict_with_uncertainty(self._xtrain.values)
-                    unc_test = regressor.predict_with_uncertainty(self._xtest.values)
-                    ystd_train.append(np.sqrt(unc_train["epistemic_var"]))
-                    ystd_test.append(np.sqrt(unc_test["epistemic_var"]))
-                else:
-                    ystd_train.append(None)
-                    ystd_test.append(None)
-
-        return (yhat_train, yhat_test, ystd_train, ystd_test, histories)
+        return (yhat_train, yhat_test, histories)
 
     def metrics(
         self, y=None, model_type=None, metrics=None, sort_by=None, direction=None
@@ -867,28 +854,21 @@ class PostProcessor:
             )
 
             # Plotting of uncertainty error bars for supported UQ models
-            if (y_std := self._verify_get_uncertainty(show_uncertainty, idx)) is not None:
-                train_ystd, test_ystd = y_std
-
-                ax.errorbar(
-                    np.ravel(self._models["Train Yhat"][idx][..., y_idx]),
-                    np.ravel(ytrain[..., y_idx]),
-                    yerr=np.ravel(train_ystd[..., y_idx]),
-                    fmt="none",
-                    ecolor="b",
-                    alpha=0.5,
-                    capsize=0,
-                    elinewidth=1,
-                )
-                ax.errorbar(
-                    np.ravel(self._models["Test Yhat"][idx][..., y_idx]),
-                    np.ravel(ytest[..., y_idx]),
-                    yerr=np.ravel(test_ystd[..., y_idx]),
-                    fmt="none",
-                    ecolor="r",
-                    alpha=0.5,
-                    capsize=0,
-                    elinewidth=1,
+            model = self._models["Model Wrappers"][idx]
+            if show_uncertainty and hasattr(model, "predict_with_uncertainty"):
+                if self._uq_visualizer is None:
+                    self._uq_visualizer = UQVisualizer(
+                        model, self._xtrain, self._xtest, self._ytrain, self._ytest, self._yscaler
+                    )
+                self._uq_visualizer.plot_scatter_errorbars(
+                    ax=ax,
+                    model=model,
+                    train_yhat=self._models["Train Yhat"][idx],
+                    test_yhat=self._models["Test Yhat"][idx],
+                    ytrain=ytrain,
+                    ytest=ytest,
+                    y_idx=y_idx,
+                    relative=False,
                 )
 
         lims = [
@@ -985,25 +965,22 @@ class PostProcessor:
         y_limits = ax.get_ylim()
 
         # Plotting of uncertainty error bars for supported UQ models
-        if (y_std := self._verify_get_uncertainty(show_uncertainty, idx)) is not None:
-            _, test_ystd = y_std
-            y = np.abs((ytest[:, y_idx] - yhat_test[:, y_idx]) / ytest[:, y_idx]) * 100
-
-            # Convert raw standard deviation to percentage relative uncertainty
-            rel_yerr = (test_ystd[..., y_idx] / np.abs(ytest[:, y_idx])) * 100
-
-
-            ax.errorbar(
-                np.linspace(1, ytest.shape[0], ytest.shape[0]),
-                np.ravel(y),
-                yerr=np.ravel(rel_yerr),
-                fmt="none",
-                ecolor=scatter.get_facecolor()[0],
-                alpha=0.5,
-                capsize=0,
-                elinewidth=1,
+        model = self._models["Model Wrappers"][idx]
+        if show_uncertainty and hasattr(model, "predict_with_uncertainty"):
+            if self._uq_visualizer is None:
+                self._uq_visualizer = UQVisualizer(
+                    model, self._xtrain, self._xtest, self._ytrain, self._ytest, self._yscaler
+                )
+            self._uq_visualizer.plot_scatter_errorbars(
+                ax=ax,
+                model=model,
+                train_yhat=self._models["Train Yhat"][idx],
+                test_yhat=self._models["Test Yhat"][idx],
+                ytrain=ytrain,
+                ytest=ytest,
+                y_idx=y_idx,
+                relative=True,
             )
-            ax.set_ylim(y_limits)
 
         if len(y) > 1:
             ax.legend()
@@ -1344,197 +1321,36 @@ class PostProcessor:
 
         return axs
 
-    def _verify_get_uncertainty(self, show_uncertainty: bool, idx: int) -> tuple | None:
-        """
-        Verify that uncertainty is enabled by user and available within the model,
-        and return the scaled uncertainty.
-
-        Parameters
-        ----------
-        show_uncertainty: bool
-            parameter passed from parent visualization parameter
-        idx: int
-            model index from self._get_index
-
-        Returns
-        -------
-        (train_ystd, test_ystd) | None: If uncertainty is available and ensemble, the
-                                        scaled uncertainty is returned. Otherwise, None
-                                        is returned.
-
-        """
-        if show_uncertainty and self._models["Test Ystd"][idx] is not None:
-            train_ystd = self._models["Train Ystd"][idx].copy()
-            test_ystd = self._models["Test Ystd"][idx].copy()
-            if self._yscaler is not None:
-                train_ystd = train_ystd / self._yscaler.scale_
-                test_ystd = test_ystd / self._yscaler.scale_
-            return train_ystd, test_ystd
-        return None
-
-    def ensemble_uncertainty_plot(
-        self,
-        x_feature=None,
-        y=None,
-        ax=None,
-        idx=None,
-        model=None,
-        model_type="DE",
-        sort_by=None,
-        direction=None,
-        num_std=2,
-    ):
-        """
-        Create a 1D slice validation plot showing deep ensemble predictions,
-        individual member predictions (epistemic), and data noise (aleatoric) if available.
-
-        Parameters
-        ----------
-        x_feature: str or int or None, default=None
-            The input feature to plot on the x-axis. If None, defaults to the first feature.
-        y: str or int or None, default=None
-            The output target variable to plot on the y-axis. If None, plots the first output.
-        ax: matplotlib.pyplot.axis or None, default=None
-            Matplotlib axis to plot on.
-        idx: int or None, default=None
-            The index in the models DataFrame.
-        model: DeepEnsemble or None, default=None
-            A pre-fitted DeepEnsemble model instance. If None, the model is refit.
-        model_type: str, default="DE"
-            The model name to look up.
-        sort_by: str or None, default=None
-            Metric to sort model configurations.
-        direction: str or None, default=None
-            Sorting direction ('min' or 'max').
-        num_std: float, default=2
-            Number of standard deviations to plot for the aleatoric noise band.
-        """
-        # Determine the index of the model in the DataFrame
-        idx = self._get_idx(
-            idx=idx, model_type=model_type, sort_by=sort_by, direction=direction
-        )
-
-        # Get actual target y_idx
-        ytest = self._ytest.values
-        if y is None:
-            y_idx = 0
-        else:
-            if isinstance(y, str):
-                y_idx = np.where(
-                    self._ytest.coords[self._ytest.dims[-1]].values == y
-                )[0]
-                if len(y_idx) == 0:
-                    raise ValueError(f"Target variable {y} not found in output data.")
-                y_idx = y_idx[0]
-            else:
-                y_idx = y
-
-        # Get input feature x_idx
-        if x_feature is None:
-            x_idx = 0
-        else:
-            if isinstance(x_feature, str):
-                x_idx = np.where(
-                    self._xtest.coords[self._xtest.dims[-1]].values == x_feature
-                )[0]
-                if len(x_idx) == 0:
-                    raise ValueError(f"Feature {x_feature} not found in input data.")
-                x_idx = x_idx[0]
-            else:
-                x_idx = x_feature
-
-        # Obtain/refit model
-        if model is None:
-            if not getattr(self, "_warned_retrain", False):
-                import warnings
-                warnings.warn(
-                    "Model not provided; retraining model configurations to extract member predictions...",
-                    UserWarning,
-                )
-                self._warned_retrain = True
-            model = self.get_model(idx=idx)
-
-        # Extract predictions and variances
-        unc = model.predict_with_uncertainty(self._xtest.values)
-
-        # Separate member predictions
-        if getattr(model, "heteroscedastic", False):
-            # heteroscedastic mode returns member predictions of shape (n_models, n_samples, 2*n_targets)
-            # using torch backend split_mean_var
-            import torch
-            from pyMAISE.methods.nn._utils import split_mean_var
-            member_means_t, _ = split_mean_var(torch.from_numpy(unc["predictions"]))
-            member_means = member_means_t.numpy()
-        else:
-            member_means = unc["predictions"]
-
-        mean_preds = unc["mean"]
-        aleatoric_var = unc["aleatoric_var"]
-
-        # Inverse transform scaling if yscaler is present (regression only)
-        is_regression = settings.values.problem_type == settings.ProblemType.REGRESSION
-        if is_regression and self._yscaler is not None:
-            # Scale mean predictions and true targets
-            mean_preds = self._yscaler.inverse_transform(mean_preds.reshape(-1, mean_preds.shape[-1]))
-            ytest = self._yscaler.inverse_transform(ytest.reshape(-1, ytest.shape[-1]))
-
-            # Scale member predictions
-            orig_shape = member_means.shape
-            member_means_flat = member_means.reshape(-1, orig_shape[-1])
-            member_means_scaled = self._yscaler.inverse_transform(member_means_flat)
-            member_means = member_means_scaled.reshape(orig_shape)
-
-            # Scale aleatoric variance (var_scaled = var * (1 / scale)**2)
-            if aleatoric_var is not None:
-                scale = self._yscaler.scale_
-                aleatoric_var = aleatoric_var * (1.0 / scale)**2
-
-        # Extract 1D arrays for plotting
-        x_vals = self._xtest.values[:, x_idx]
-        true_y = ytest[:, y_idx]
-        mean_y = mean_preds[:, y_idx]
-        member_y = member_means[:, :, y_idx]
-
-        # Sort indices by x_vals
-        sort_idx = np.argsort(x_vals)
-        sorted_x = x_vals[sort_idx]
-        sorted_true_y = true_y[sort_idx]
-        sorted_mean_y = mean_y[sort_idx]
-        sorted_member_y = member_y[:, sort_idx]
-
-        # Plot
-        if ax is None:
-            ax = plt.gca()
-
-        # Scatter plot of true data
-        scatter = ax.scatter(sorted_x, sorted_true_y, c="black", marker="o", label="True Data")
-
-        # Plot individual ensemble members (epistemic spread)
-        # Note: only label the first one to avoid polluting the legend
-        for m_idx in range(sorted_member_y.shape[0]):
-            label = "Ensemble Members" if m_idx == 0 else ""
-            ax.plot(sorted_x, sorted_member_y[m_idx], color="blue", alpha=0.2, linestyle="--", label=label)
-
-        # Plot ensemble mean
-        ax.plot(sorted_x, sorted_mean_y, color="blue", linewidth=2, label="Ensemble Mean")
-
-        # Shaded uncertainty band (aleatoric) - Regression only
-        if is_regression and aleatoric_var is not None:
-            std_y = np.sqrt(aleatoric_var[:, y_idx])
-            sorted_std_y = std_y[sort_idx]
-            ax.fill_between(
-                sorted_x,
-                sorted_mean_y - num_std * sorted_std_y,
-                sorted_mean_y + num_std * sorted_std_y,
-                color="orange",
-                alpha=0.15,
-                label=f"Data Noise (+/- {num_std} std)",
+    def uncertainty_visualization(self, vis: str, ax=None, model=None, **kwargs) -> plt.Axes:
+        # Instantiate the UQ visualizer class only the first time
+        if self._uq_visualizer is None:
+            model_inst = model or self.get_model(idx=self._get_idx(model_type="DE"))
+            self._uq_visualizer = UQVisualizer(
+                model_inst,
+                self._xtrain, self._xtest, self._ytrain, self._ytest, self._yscaler
             )
 
-        ax.legend()
-        feature_name = self._xtest.coords[self._xtest.dims[-1]].values[x_idx] if hasattr(self._xtest, "coords") else f"Feature {x_idx}"
-        target_name = self._ytest.coords[self._ytest.dims[-1]].values[y_idx] if hasattr(self._ytest, "coords") else f"Target {y_idx}"
-        ax.set_xlabel(feature_name)
-        ax.set_ylabel(target_name)
+        # Plot the visualization
+        match vis:
+            case "sorted_uncertainty" | "su":
+                feature = kwargs.get("feature", None) or kwargs.get("feature_idx", None)
+                show_members = kwargs.get("show_members", False)
+                return self._uq_visualizer.sorted_uncertainty_plot(ax, model, feature, show_members)
+            case "epistemic_aleatoric" | "ea":
+                return self._uq_visualizer.epistemic_aleatoric_plot(ax, model, normalize=kwargs.get("normalize", False))
+            case "data_calibration" | "dc":
+                return self._uq_visualizer.data_calibration_plot(
+                    ax=ax,
+                    model=model,
+                    sections=kwargs.pop("sections", 6),
+                    plot_type=kwargs.pop("plot_type", "sorted_uncertainty"),
+                    feature=kwargs.pop("feature", None),
+                    normalize=kwargs.pop("normalize", False),
+                    **kwargs,
+                )
+            case _:
+                raise ValueError(f"Unknown UQ visualization type: {vis}")
 
-        return ax
+    def deep_ensemble_visualization(self, vis: str, ax=None, model=None, **kwargs) -> plt.Axes:
+        """Backward-compatible alias for uncertainty_visualization."""
+        return self.uncertainty_visualization(vis=vis, ax=ax, model=model, **kwargs)
