@@ -14,6 +14,7 @@ from pyMAISE.methods.nn._conv2d import Conv2DLayer
 from pyMAISE.methods.nn._conv3d import Conv3DLayer
 from pyMAISE.methods.nn._dense import DenseLayer
 from pyMAISE.methods.nn._dropout import DropoutLayer
+from pyMAISE.methods.nn._mc_dropout import MCDropoutLayer
 from pyMAISE.methods.nn._flatten import FlattenLayer
 from pyMAISE.methods.nn._gru import GRULayer
 from pyMAISE.methods.nn._lstm import LSTMLayer
@@ -97,6 +98,7 @@ class nnHyperModel:
     layer_dict = {
         "Dense": DenseLayer,
         "Dropout": DropoutLayer,
+        "MCDropout": MCDropoutLayer,
         "LSTM": LSTMLayer,
         "GRU": GRULayer,
         "Conv1D": Conv1DLayer,
