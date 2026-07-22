@@ -575,8 +575,6 @@ class Tuner:
 
         data = {}
         for model in models:
-            print(f"Tuning {model}")
-
             # Run model
             estimator = self._models[model].regressor()
             if model_settings is not None and model in model_settings:
