@@ -7,6 +7,9 @@ import numpy as np
 import optuna
 import pandas as pd
 import torch
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from numpy import ndarray
 from skorch import NeuralNetClassifier, NeuralNetRegressor
 from torchview import draw_graph
 from sklearn.metrics import (
@@ -115,7 +118,7 @@ class PostProcessor:
 
         # Fit each model to training data and get predicted training
         # and testing from each model
-        yhat_train, yhat_test, histories = self._fit()
+        yhat_train, yhat_test, histories, models = self._fit()
 
         # Scale predicted data if scaler is given
         self._yscaler = yscaler
@@ -133,6 +136,7 @@ class PostProcessor:
                         "Train Yhat": yhat_train,
                         "Test Yhat": yhat_test,
                         "History": histories,
+                        "Model": models,
                     }
                 ),
             ],
@@ -163,6 +167,7 @@ class PostProcessor:
         yhat_train = []
         yhat_test = []
         histories = []
+        models = []
 
         # Progress bar
         p = tqdm(
@@ -198,6 +203,7 @@ class PostProcessor:
                 )
                 regressor.fit(xtrain.values, ytrain.values)
                 histories.append(None)
+                models.append(regressor)
 
                 # Predict (sklearn accept numpy; xarray coerces implicitly but
                 # .values is explicit and safe)
@@ -229,6 +235,7 @@ class PostProcessor:
                     self._ytrain.values,
                 )
                 histories.append(history)
+                models.append(regressor)
 
                 # skorch predict() accepts numpy arrays and returns numpy.
                 # verbose is set at construction time (verbose=0 in build()),
@@ -258,7 +265,7 @@ class PostProcessor:
                         ).reshape(-1, self._ytest.shape[-1])
                     )
 
-        return (yhat_train, yhat_test, histories)
+        return (yhat_train, yhat_test, histories, models)
 
     def metrics(
         self, y=None, model_type=None, metrics=None, sort_by=None, direction=None
@@ -854,13 +861,10 @@ class PostProcessor:
             )
 
             # Plotting of uncertainty error bars for supported UQ models
-            model = self._models["Model Wrappers"][idx]
+            model = self._models["Model"][idx]
             if show_uncertainty and hasattr(model, "predict_with_uncertainty"):
-                if self._uq_visualizer is None:
-                    self._uq_visualizer = UQVisualizer(
-                        model, self._xtrain, self._xtest, self._ytrain, self._ytest, self._yscaler
-                    )
-                self._uq_visualizer.plot_scatter_errorbars(
+                vis = self._init_uq_visualizer(model)
+                vis.plot_scatter_errorbars(
                     ax=ax,
                     model=model,
                     train_yhat=self._models["Train Yhat"][idx],
@@ -965,13 +969,10 @@ class PostProcessor:
         y_limits = ax.get_ylim()
 
         # Plotting of uncertainty error bars for supported UQ models
-        model = self._models["Model Wrappers"][idx]
+        model = self._models["Model"][idx]
         if show_uncertainty and hasattr(model, "predict_with_uncertainty"):
-            if self._uq_visualizer is None:
-                self._uq_visualizer = UQVisualizer(
-                    model, self._xtrain, self._xtest, self._ytrain, self._ytest, self._yscaler
-                )
-            self._uq_visualizer.plot_scatter_errorbars(
+            vis = self._init_uq_visualizer(model)
+            vis.plot_scatter_errorbars(
                 ax=ax,
                 model=model,
                 train_yhat=self._models["Train Yhat"][idx],
@@ -1321,25 +1322,71 @@ class PostProcessor:
 
         return axs
 
-    def uncertainty_visualization(self, vis: str, ax=None, model=None, **kwargs) -> plt.Axes:
-        # Instantiate the UQ visualizer class only the first time
-        if self._uq_visualizer is None:
-            model_inst = model or self.get_model(idx=self._get_idx(model_type="DE"))
+    def _init_uq_visualizer(self, model=None):
+        """Instantiate or update UQVisualizer with a fitted UQ model instance."""
+        if model is None:
+            for m in self._models["Model"]:
+                if hasattr(m, "predict_with_uncertainty"):
+                    model = m
+                    break
+
+        if self._uq_visualizer is None or (model is not None and self._uq_visualizer.model is not model):
             self._uq_visualizer = UQVisualizer(
-                model_inst,
+                model,
                 self._xtrain, self._xtest, self._ytrain, self._ytest, self._yscaler
             )
+        return self._uq_visualizer
+
+    def uncertainty_visualization(self, visual: str, ax=None, model=None, **kwargs) -> Figure | Axes:
+        """
+        Visualize uncertainty for supported UQ models.
+
+        Parameters
+        ----------
+        visual: str
+            The visualization type to generate. Supported keys:
+
+            - ``'sorted_uncertainty'`` or ``'su'``: Plot predictions sorted by target
+              mean with aleatoric and epistemic uncertainty bands.
+            - ``'epistemic_aleatoric'`` or ``'ea'``: Plot epistemic versus aleatoric
+              uncertainty metrics.
+            - ``'data_calibration'`` or ``'dc'``: Plot uncertainty behavior across
+              subsampled dataset fractions.
+        ax: matplotlib.pyplot.Axes or None, default=None
+            The matplotlib axes to plot on. If ``None``, an axes object is created.
+        model: pyMAISE model or None, default=None
+            The model instance to visualize. If ``None``, the best model is used.
+        **kwargs
+            Additional keyword arguments passed to the specific visualizer method:
+
+            - For ``'sorted_uncertainty'`` / ``'su'``:
+                - ``feature`` or ``feature_idx``: str, int, or None, default=None
+                - ``show_members``: Boolean, default=False
+            - For ``'epistemic_aleatoric'`` / ``'ea'``:
+                - ``normalize``: Boolean, default=False
+            - For ``'data_calibration'`` / ``'dc'``:
+                - ``sections``: int, default=6
+                - ``plot_type``: str, default='sorted_uncertainty'
+                - ``feature``: str, int, or None, default=None
+                - ``normalize``: Boolean, default=False
+
+        Returns
+        -------
+        ax: matplotlib.pyplot.Axes
+            The matplotlib axes containing the uncertainty visualization.
+        """
+        vis = self._init_uq_visualizer(model)
 
         # Plot the visualization
-        match vis:
+        match visual:
             case "sorted_uncertainty" | "su":
                 feature = kwargs.get("feature", None) or kwargs.get("feature_idx", None)
                 show_members = kwargs.get("show_members", False)
-                return self._uq_visualizer.sorted_uncertainty_plot(ax, model, feature, show_members)
+                return vis.sorted_uncertainty_plot(ax, model, feature, show_members)
             case "epistemic_aleatoric" | "ea":
-                return self._uq_visualizer.epistemic_aleatoric_plot(ax, model, normalize=kwargs.get("normalize", False))
+                return vis.epistemic_aleatoric_plot(ax, model, normalize=kwargs.get("normalize", False))
             case "data_calibration" | "dc":
-                return self._uq_visualizer.data_calibration_plot(
+                return vis.data_calibration_plot(
                     ax=ax,
                     model=model,
                     sections=kwargs.pop("sections", 6),
@@ -1349,8 +1396,4 @@ class PostProcessor:
                     **kwargs,
                 )
             case _:
-                raise ValueError(f"Unknown UQ visualization type: {vis}")
-
-    def deep_ensemble_visualization(self, vis: str, ax=None, model=None, **kwargs) -> plt.Axes:
-        """Backward-compatible alias for uncertainty_visualization."""
-        return self.uncertainty_visualization(vis=vis, ax=ax, model=model, **kwargs)
+                raise ValueError(f"Unknown UQ visualization type: {visual}")

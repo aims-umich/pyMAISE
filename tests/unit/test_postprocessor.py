@@ -140,7 +140,7 @@ def test_constructor(setup_xs_grid_search_results, setup_xs_nn_grid_search_resul
 
     # Shape and contents assertions (2 models per type)
     print(postprocessor._models)
-    assert postprocessor._models.shape == (6, 6)
+    assert postprocessor._models.shape == (6, 7)
     for i in range(postprocessor._models.shape[0]):
         assert postprocessor._models["Train Yhat"][i].shape == data[2].shape
         assert postprocessor._models["Test Yhat"][i].shape == data[3].shape

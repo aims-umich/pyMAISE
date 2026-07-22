@@ -369,12 +369,12 @@ class UQVisualizer:
                     mean_al = np.mean(al_std)
                     mean_comb = np.mean(np.sqrt((al_std ** 2) + (ep_std ** 2)))
                     stats_str = (
-                        rf"Mean Aleatoric $\sigma$: {mean_al:.2f}" "\n"
-                        rf"Mean Epistemic $\sigma$: {mean_ep:.2f}" "\n"
-                        rf"Mean Total $\sigma$:     {mean_comb:.2f}"
+                        rf"Mean Aleatoric $\sigma$: {mean_al:.4f}" "\n"
+                        rf"Mean Epistemic $\sigma$: {mean_ep:.4f}" "\n"
+                        rf"Mean Total $\sigma$:     {mean_comb:.4f}"
                     )
                 else:
-                    stats_str = rf"Mean Epistemic $\sigma$: {mean_ep:.2f}"
+                    stats_str = rf"Mean Epistemic $\sigma$: {mean_ep:.4f}"
 
                 sub_ax.text(
                     0.03, 0.95,

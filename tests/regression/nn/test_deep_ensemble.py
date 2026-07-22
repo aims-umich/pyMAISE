@@ -444,17 +444,17 @@ def test_ensemble_uncertainty_plot():
 
     # Run plot tests (with and without pre-fitted model)
     fig, ax = plt.subplots()
-    post_processor_reg.deep_ensemble_visualization("su", ax=ax)
-    post_processor_reg.deep_ensemble_visualization("su", ax=ax, show_members=True)
-    post_processor_reg.deep_ensemble_visualization("ea", ax=ax)
-    post_processor_reg.deep_ensemble_visualization("dc", sections=4, plot_type="su")
-    post_processor_reg.deep_ensemble_visualization("dc", sections=4, plot_type="ea")
+    post_processor_reg.uncertainty_visualization("su", ax=ax)
+    post_processor_reg.uncertainty_visualization("su", ax=ax, show_members=True)
+    post_processor_reg.uncertainty_visualization("ea", ax=ax)
+    post_processor_reg.uncertainty_visualization("dc", sections=4, plot_type="su")
+    post_processor_reg.uncertainty_visualization("dc", sections=4, plot_type="ea")
 
     # Pre-fitted model test
     model_reg = post_processor_reg.get_model(model_type="DE")
-    post_processor_reg.deep_ensemble_visualization("su", ax=ax, model=model_reg, show_members=True)
-    post_processor_reg.deep_ensemble_visualization("ea", ax=ax, model=model_reg)
-    post_processor_reg.deep_ensemble_visualization("dc", sections=4, model=model_reg)
+    post_processor_reg.uncertainty_visualization("su", ax=ax, model=model_reg, show_members=True)
+    post_processor_reg.uncertainty_visualization("ea", ax=ax, model=model_reg)
+    post_processor_reg.uncertainty_visualization("dc", sections=4, model=model_reg)
     plt.close("all")
 
     # 2. Classification test
@@ -488,8 +488,8 @@ def test_ensemble_uncertainty_plot():
     post_processor_cls.metrics() # Populate metrics columns
 
     fig, ax = plt.subplots()
-    post_processor_cls.deep_ensemble_visualization("su", ax=ax)
-    post_processor_cls.deep_ensemble_visualization("ea", ax=ax)
+    post_processor_cls.uncertainty_visualization("su", ax=ax)
+    post_processor_cls.uncertainty_visualization("ea", ax=ax)
     plt.close(fig)
 
 
