@@ -20,7 +20,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 
-from pyMAISE.methods.nn import DeepEnsemble
+from pyMAISE.methods.nn import DeepEnsemble, DeepEnsembleHyperModel, MCDropoutHyperModel
 
 # scikit-optimize 0.9.0 uses np.int which was removed in numpy 1.24.
 # Patch before importing skopt so users aren't hit by the AttributeError.
@@ -46,7 +46,7 @@ from pyMAISE.methods import (
     AdaBoost,
     ExtraTrees,
     MultiOutput,
-    Stacking,
+    Stacking, MCDropout,
 )
 from pyMAISE.utils import NNTuner, _try_clear
 
@@ -303,6 +303,12 @@ class Tuner:
         "Stacking": Stacking,
     }
 
+    supported_uq_models = {
+        "DE": DeepEnsembleHyperModel,
+        "MCD": MCDropoutHyperModel,
+        "NN": nnHyperModel
+    }
+
     def __init__(self, xtrain, ytrain, model_settings):
         self._xtrain = xtrain.values
         self._ytrain = ytrain.values
@@ -326,39 +332,24 @@ class Tuner:
                     self.supported_classical_models[model]
                 )(parameters=parameters)
 
-            # TODO Possibly converge these into a list and simply to a single lif statement?
-            # Deep Ensemble
-            elif model == "DE":
-                from pyMAISE.methods.nn import DeepEnsembleHyperModel
-
-                num_models = 5
+            # Supported UQ models accept an addition parameter
+            elif model in self.supported_uq_models:
                 if parameters and "num_models" in parameters:
-                    parameters = copy.deepcopy(parameters)
-                    num_models = parameters.pop("num_models")
+                    n_samples = {"num_models": parameters.pop("num_models")}
+                elif "num_passes" in parameters:
+                    n_samples = {"num_passes": parameters.pop("num_passes")}
+                else:
+                    n_samples = {}
 
-                self._models[model] = DeepEnsembleHyperModel(
+                # Instantiate UQ HyperModel
+                self._models[model] = self.supported_uq_models[model](
                     parameters=parameters,
                     input_shape=self._xtrain.shape[1:],
                     name=model,
-                    num_models=num_models,
+                    **n_samples,
                 )
 
-            # MC Dropout
-            elif model == "MCD":
-                from pyMAISE.methods.nn import MCDropoutHyperModel
-
-                num_passes = 100
-                if parameters and "num_passes" in parameters:
-                    parameters = copy.deepcopy(parameters)
-                    num_passes = parameters.pop("num_passes")
-
-                self._models[model] = MCDropoutHyperModel(
-                    parameters=parameters,
-                    input_shape=self._xtrain.shape[1:],
-                    name=model,
-                    num_passes=num_passes,
-                )
-
+            # Other Neural Networks
             else:
                 self._models[model] = copy.deepcopy(nnHyperModel)(
                     parameters=parameters,
