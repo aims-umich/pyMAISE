@@ -159,7 +159,6 @@ class NNTuner:
         # bar instead.  In verbose mode, show Optuna trial details.
         if settings.values.verbosity == 0:
             optuna.logging.set_verbosity(optuna.logging.WARNING)
-            print(f"Tuning {self.hypermodel._name}")
         else:
             optuna.logging.set_verbosity(optuna.logging.INFO)
 

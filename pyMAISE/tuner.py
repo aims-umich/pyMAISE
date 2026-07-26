@@ -611,8 +611,6 @@ class Tuner:
         search_data = {}
         for model in models:
             if model in spaces:
-                print(f"  Tuning {model}")
-
                 # Run search method
                 search = search_method(
                     self._models[model].regressor(), spaces[model], **search_kwargs

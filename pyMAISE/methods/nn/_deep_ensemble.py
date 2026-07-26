@@ -264,8 +264,8 @@ class DeepEnsembleHyperModel(nnHyperModel):
         input_shape: Tuple,
         name: str,
         num_models: int = 5,
-        tune_ensemble: bool = False,
-    ) -> None:
+        ensemble_mode: bool = False,
+    ):
         """
         Parameters
         ----------
@@ -277,12 +277,12 @@ class DeepEnsembleHyperModel(nnHyperModel):
             Name identifier for this model.
         num_models: int, default=5
             Number of models in the ensemble.
-        tune_ensemble: bool, default=False
+        ensemble_mode: bool, default=False
             Whether to tune the ensemble as a whole.
         """
         super(DeepEnsembleHyperModel, self).__init__(parameters, input_shape, name)
         self.num_models = num_models
-        self.ensemble_mode = tune_ensemble
+        self.ensemble_mode = ensemble_mode
         self.best_trial = None
 
     def build(self, trial: Any) -> Any:
