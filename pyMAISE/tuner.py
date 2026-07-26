@@ -326,6 +326,7 @@ class Tuner:
                     self.supported_classical_models[model]
                 )(parameters=parameters)
 
+            # TODO Possibly converge these into a list and simply to a single lif statement?
             # Deep Ensemble
             elif model == "DE":
                 from pyMAISE.methods.nn import DeepEnsembleHyperModel
@@ -340,6 +341,22 @@ class Tuner:
                     input_shape=self._xtrain.shape[1:],
                     name=model,
                     num_models=num_models,
+                )
+
+            # MC Dropout
+            elif model == "MCD":
+                from pyMAISE.methods.nn import MCDropoutHyperModel
+
+                num_passes = 100
+                if parameters and "num_passes" in parameters:
+                    parameters = copy.deepcopy(parameters)
+                    num_passes = parameters.pop("num_passes")
+
+                self._models[model] = MCDropoutHyperModel(
+                    parameters=parameters,
+                    input_shape=self._xtrain.shape[1:],
+                    name=model,
+                    num_passes=num_passes,
                 )
 
             else:

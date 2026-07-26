@@ -14,7 +14,7 @@ from pyMAISE.methods.nn._nn_hypermodel import nnHyperModel
 
 
 """
-How the classes interact with pyMAISE:
+General pyMAISE workflow:
 1. Tuner: 
     - Instantiates a DeepEnsembleHyperModel.
     - Tunes a single, non-ensemble, model using the DeepEnsembleHyperModel object by calling the build method.
@@ -41,13 +41,9 @@ class DeepEnsemble:
         Parameters
         ----------
         models: List
-            List of individual Skortch NeuralNetRegressor models.
+            List of individual Skorch NeuralNetRegressor models.
         heteroscedastic: bool, default=False
             Whether to use heteroscedastic uncertainty quantification.
-
-        Returns
-        -------
-        None
         """
         self.ensemble_models = models
         self.heteroscedastic = heteroscedastic
@@ -283,10 +279,6 @@ class DeepEnsembleHyperModel(nnHyperModel):
             Number of models in the ensemble.
         tune_ensemble: bool, default=False
             Whether to tune the ensemble as a whole.
-
-        Returns
-        -------
-        None
         """
         super(DeepEnsembleHyperModel, self).__init__(parameters, input_shape, name)
         self.num_models = num_models
