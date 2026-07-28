@@ -103,14 +103,24 @@ class MCDropout:
 
         raw_preds = []
 
+        # Cannot just call model.predict() because skorch's predict()
+        # turns dropout OFF, so this is the workaround:
+        #   Convert inputs to a PyTorch float tensor on the same device as module
+        device = next(module.parameters()).device
+        x_tensor = torch.tensor(np.asarray(x), dtype=torch.float32, device=device)
+
         # Each pass has different dropout modules, so we turn them all OFF,
         # then turn ON for the specific pass we are predicting on.
         try:
-            for _ in range(n_passes):
-                module.eval()  # turns Dropout OFF
-                for m in dropout_modules:
-                    m.train()  # turns Dropout ON
-                raw_preds.append(self.model.predict(x))
+            with torch.no_grad():
+                for _ in range(n_passes):
+                    module.eval()  # turns Dropout OFF
+                    for m in dropout_modules:
+                        m.train()  # turns Dropout ON
+
+                    # This is essentially the same as model.predict(X)
+                    out = module(x_tensor).detach().cpu().numpy()
+                    raw_preds.append(out)
         finally:
             module.eval()
 

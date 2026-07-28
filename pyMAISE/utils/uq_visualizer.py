@@ -38,7 +38,7 @@ class UQVisualizer:
         self,
         ax=None,
         model=None,
-        feature: str | None = None,
+        target: str | None = None,
         show_members: bool = False,
     ) -> plt.Axes:
         """
@@ -53,7 +53,7 @@ class UQVisualizer:
         model: Model wrapper or None, default=None
             Optional UQ model to compute uncertainty predictions from.
             If None or self.model, uses precomputed uncertainty predictions from initialization.
-        feature: str or None, default=None
+        target: str or None, default=None
             The name of the target feature to plot. If None, defaults to the first
             target feature in target_names.
         show_members: bool, default=False
@@ -67,11 +67,11 @@ class UQVisualizer:
         ax = ax or plt.gca()
 
         # Map feature string to index
-        f = feature or self.target_names[0]
+        target_feat = target or self.target_names[0]
         try:
-            idx = list(self.target_names).index(f)
+            idx = list(self.target_names).index(target_feat)
         except ValueError:
-            warnings.warn(f"UQVisualizer: Feature {f} not found in target names. Skipping plot.")
+            warnings.warn(f"UQVisualizer: Feature {target_feat} not found in target names. Skipping plot.")
             return ax
 
         # Use cached predictions if model is None or self.model
@@ -161,8 +161,8 @@ class UQVisualizer:
 
         ax.plot(x, mean_sorted, lw=2, c="k", label="Mean")
         ax.legend()
-        ax.set_title(f"Feature: {f}")
-        ax.set_ylabel("Prediction Value")
+        ax.set_title(f"Target: {target_feat}")
+        ax.set_ylabel("Prediction Value")   # TODO Majdi maybe wants this to be dynamic with target?
         ax.set_xlabel("Sample Index")
         return ax
 
@@ -340,7 +340,7 @@ class UQVisualizer:
 
             match plot_type.lower():
                 case "sorted_uncertainty" | "su":
-                    self.sorted_uncertainty_plot(ax=sub_ax, model=sub_ensemble, feature=f)
+                    self.sorted_uncertainty_plot(ax=sub_ax, model=sub_ensemble, target=f)
                 case "epistemic_aleatoric" | "ea":
                     self.epistemic_aleatoric_plot(ax=sub_ax, model=sub_ensemble, normalize=normalize)
                 case _:
@@ -349,7 +349,7 @@ class UQVisualizer:
                         f"Supported options: 'sorted_uncertainty' ('su'), 'epistemic_aleatoric' ('ea')."
                     )
 
-            sub_ax.set_title(f"Data: {pct} ({end_idx} samples)")
+            sub_ax.set_title(f"Training Data Subsample: {pct} ({end_idx} samples)")
 
             if kwargs.get("show_stats", True):
                 unc_sub = sub_ensemble.predict_with_uncertainty(self.xtest.values)
