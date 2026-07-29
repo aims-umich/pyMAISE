@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Optional, Tuple
 import numpy as np
 import torch
@@ -107,7 +108,12 @@ class MCDropout:
         # turns dropout OFF, so this is the workaround:
         #   Convert inputs to a PyTorch float tensor on the same device as module
         device = next(module.parameters()).device
-        x_tensor = torch.tensor(np.asarray(x), dtype=torch.float32, device=device)
+        if isinstance(x, torch.Tensor):
+            x_tensor = x.to(dtype=torch.float32, device=device)
+        elif x is not None:
+            x_tensor = torch.tensor(np.asarray(x), dtype=torch.float32, device=device)
+        else:
+            x_tensor = None
 
         # Each pass has different dropout modules, so we turn them all OFF,
         # then turn ON for the specific pass we are predicting on.
@@ -118,8 +124,13 @@ class MCDropout:
                     for m in dropout_modules:
                         m.train()  # turns Dropout ON
 
-                    # This is essentially the same as model.predict(X)
-                    out = module(x_tensor).detach().cpu().numpy()
+                    if x_tensor is not None:
+                        # Direct PyTorch forward pass (bypassing skorch.predict)
+                        # This is essentially the same as model.predict(X)
+                        out = module(x_tensor).detach().cpu().numpy()
+                    else:
+                        warnings.warn("MCDropout: x is None. Falling back to model.predict(), which disables dropout sampling.")
+                        out = self.model.predict(x)
                     raw_preds.append(out)
         finally:
             module.eval()
