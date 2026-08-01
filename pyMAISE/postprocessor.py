@@ -951,6 +951,12 @@ class PostProcessor:
         if ax is None:
             ax = plt.gca()
 
+
+        model = self._models["Model"][idx]
+        has_uq = show_uncertainty and hasattr(model, "predict_with_uncertainty")
+        if has_uq:
+            vis = self._init_uq_visualizer(model)
+
         for y_idx in y:
             # If the column name is given as opposed to the position,
             # find the position
@@ -965,23 +971,19 @@ class PostProcessor:
                 label=self._ytest.coords[self._ytest.dims[-1]].values[y_idx],
             )
 
-        # Get y-limits set by the scatter plot
-        y_limits = ax.get_ylim()
-
-        # Plotting of uncertainty error bars for supported UQ models
-        model = self._models["Model"][idx]
-        if show_uncertainty and hasattr(model, "predict_with_uncertainty"):
-            vis = self._init_uq_visualizer(model)
-            vis.plot_scatter_errorbars(
-                ax=ax,
-                model=model,
-                train_yhat=self._models["Train Yhat"][idx],
-                test_yhat=self._models["Test Yhat"][idx],
-                ytrain=self._ytrain.values,
-                ytest=ytest,
-                y_idx=y_idx,
-                relative=True,
-            )
+            # Plotting of uncertainty error bars for supported UQ models
+            if has_uq:
+                vis.plot_scatter_errorbars(
+                    ax=ax,
+                    model=model,
+                    train_yhat=self._models["Train Yhat"][idx],
+                    test_yhat=self._models["Test Yhat"][idx],
+                    ytrain=self._ytrain.values,
+                    ytest=ytest,
+                    y_idx=y_idx,
+                    relative=True,
+                    color=scatter.get_facecolor()[0],
+                )
 
         if len(y) > 1:
             ax.legend()

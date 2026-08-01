@@ -398,6 +398,7 @@ class UQVisualizer:
         ytest=None,
         y_idx: int = 0,
         relative: bool = False,
+        color=None,
     ):
         """
         Draw scatter plot error bars for UQ models in diagonal_validation_plot
@@ -422,6 +423,8 @@ class UQVisualizer:
         relative: bool, default=False
             If True, plot relative error percentage error bars (validation_plot).
             If False, plot actual outcome error bars (diagonal_validation_plot).
+        color: color or None, default=None
+            Color for error bars.
         """
         if model is not None and model is not self.model:
             unc_train = model.predict_with_uncertainty(self.xtrain.values)
@@ -443,19 +446,19 @@ class UQVisualizer:
         if relative:
             ytest_slice = np.abs(ytest[..., y_idx])
             rel_yerr = (test_ystd[..., y_idx] / ytest_slice) * 100
-            errorevery = max(1, ytest.shape[0] // 30)
+            test_yhat_slice = test_yhat[..., y_idx] if test_yhat.ndim > 1 else test_yhat
+            rel_error = np.abs((ytest[..., y_idx] - test_yhat_slice) / ytest_slice) * 100
 
             cur_ylim = ax.get_ylim()
             ax.errorbar(
-                np.arange(ytest.shape[0]),
-                np.zeros(ytest.shape[0]),
+                np.linspace(1, ytest.shape[0], ytest.shape[0]),
+                np.ravel(rel_error),
                 yerr=np.ravel(rel_yerr),
                 fmt="none",
-                ecolor="k",
-                alpha=0.4,
+                ecolor=color if color is not None else "k",
+                alpha=0.3,
                 capsize=0,
                 elinewidth=1,
-                errorevery=errorevery,
             )
             ax.set_ylim(cur_ylim)
         else:
