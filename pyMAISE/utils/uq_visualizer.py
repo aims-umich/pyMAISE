@@ -295,6 +295,7 @@ class UQVisualizer:
         fig, axes: matplotlib.pyplot.Figure, np.ndarray of matplotlib.pyplot.axis
             The created or modified figure and subplot axes array.
         """
+        # Calculate subplot grid geometry based on section count
         if sections == 4:
             n_rows, n_cols = 2, 2
         elif sections == 6:
@@ -324,6 +325,7 @@ class UQVisualizer:
         n_samples = self.xtrain.shape[0]
         step = max(1, n_samples // sections)
 
+        # Iterate through data sections and evaluate uncertainty calibration progression
         for i in range(sections):
             if i >= len(axes_flat):
                 break
@@ -332,12 +334,15 @@ class UQVisualizer:
             end_idx = n_samples if i == sections - 1 else (i + 1) * step
             pct = f"{int(round((end_idx / n_samples) * 100))}%"
 
+            # Slice training features and labels up to the current section boundary
             xtrain_sub = self.xtrain.values[:end_idx]
             ytrain_sub = self.ytrain.values[:end_idx]
 
+            # Copy the target model structure and fit on the incremental subset
             sub_ensemble = copy.deepcopy(target_model)
             sub_ensemble.fit(xtrain_sub, ytrain_sub)
 
+            # Delegate to visualizer plot type for current section subplot
             match plot_type.lower():
                 case "sorted_uncertainty" | "su":
                     self.sorted_uncertainty_plot(ax=sub_ax, model=sub_ensemble, target=f)
@@ -351,12 +356,14 @@ class UQVisualizer:
 
             sub_ax.set_title(f"Training Data Subsample: {pct} ({end_idx} samples)")
 
+            # Compute and display mean epistemic and aleatoric uncertainty statistics
             if kwargs.get("show_stats", True):
                 unc_sub = sub_ensemble.predict_with_uncertainty(self.xtest.values)
                 ep_v = unc_sub["epistemic_var"]
                 if ep_v.ndim > 1:
                     ep_v = ep_v[:, feature_idx] if plot_type.lower() in ["sorted_uncertainty", "su"] else np.mean(ep_v, axis=-1)
 
+                # Un-scale standard deviations to physical units
                 scale = self.yscaler.scale_[feature_idx] if (self.yscaler is not None and hasattr(self.yscaler, "scale_")) else 1.0
                 ep_std = np.sqrt(np.maximum(0, ep_v)) / scale
                 mean_ep = np.mean(ep_std)
@@ -439,6 +446,7 @@ class UQVisualizer:
         train_ystd = np.sqrt(np.maximum(0, unc_train["epistemic_var"]))
         test_ystd = np.sqrt(np.maximum(0, unc_test["epistemic_var"]))
 
+        # Convert scaled variance/std back to unscaled physical target units
         if self.yscaler is not None:
             train_ystd = train_ystd / self.yscaler.scale_
             test_ystd = test_ystd / self.yscaler.scale_
@@ -482,3 +490,31 @@ class UQVisualizer:
                 capsize=0,
                 elinewidth=1,
             )
+
+    def plot_learning_uncertainty(self, ax, history):
+        """
+        Plot training/validation loss uncertainty bands (+/- 1 sigma) for learning curves.
+        """
+        if "val_loss_std" not in history:
+            return
+
+        loss = np.array(history["loss"])
+        loss_std = np.array(history["loss_std"])
+        val_loss = np.array(history["val_loss"])
+        val_loss_std = np.array(history["val_loss_std"])
+        epochs = np.arange(len(history["loss"]))
+
+        ax.fill_between(
+            epochs,
+            loss - loss_std,
+            loss + loss_std,
+            alpha=0.2,
+            color="b",
+        )
+        ax.fill_between(
+            epochs,
+            val_loss - val_loss_std,
+            val_loss + val_loss_std,
+            alpha=0.2,
+            color="y",
+        )

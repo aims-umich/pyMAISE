@@ -823,6 +823,9 @@ class PostProcessor:
             idx=idx, model_type=model_type, sort_by=sort_by, direction=direction
         )
 
+        model = self._models["Model"][idx]
+        has_uncertainty = show_uncertainty and hasattr(model, "predict_with_uncertainty")
+
         # Get the list of y if not provided
         if not isinstance(y, list):
             y = [y] if y is not None else list(range(self._ytrain.shape[-1]))
@@ -861,8 +864,7 @@ class PostProcessor:
             )
 
             # Plotting of uncertainty error bars for supported UQ models
-            model = self._models["Model"][idx]
-            if show_uncertainty and hasattr(model, "predict_with_uncertainty"):
+            if has_uncertainty:
                 vis = self._init_uq_visualizer(model)
                 vis.plot_scatter_errorbars(
                     ax=ax,
@@ -884,7 +886,10 @@ class PostProcessor:
         ax.set_aspect("equal")
         ax.set_xlim(lims)
         ax.set_ylim(lims)
-        ax.legend(["Training Data", "Testing Data"])
+        if has_uncertainty:
+            ax.legend([r"Training ($\pm 1\sigma$)", r"Testing ($\pm 1\sigma$)"])
+        else:
+            ax.legend(["Training Data", "Testing Data"])
         ax.set_xlabel("Predicted Outcome")
         ax.set_ylabel("Actual Outcome")
 
@@ -1038,31 +1043,21 @@ class PostProcessor:
         ax = ax or plt.gca()
 
         history = self._models["History"][idx]
+        model = self._models["Model"][idx]
 
-        if show_uncertainty and "val_loss_std" in history:
-            loss = np.array(history["loss"])
-            loss_std = np.array(history["loss_std"])
-            val_loss = np.array(history["val_loss"])
-            val_loss_std = np.array(history["val_loss_std"])
-            epochs = np.arange(len(history["loss"]))
+        # Handle Uncertainty models
+        has_uq = show_uncertainty and "val_loss_std" in history
+        if has_uq:
+            vis = self._init_uq_visualizer(model)
+            vis.plot_learning_uncertainty(ax, history)
+            train_label = r"Training ($\pm 1\sigma$)"
+            val_label = r"Validation ($\pm 1\sigma$)"
+        else:
+            train_label = "Training"
+            val_label = "Validation"
 
-            ax.fill_between(
-                epochs,
-                loss - loss_std,
-                loss + loss_std,
-                alpha=0.2,
-                color="b",
-            )
-            ax.fill_between(
-                epochs,
-                val_loss - val_loss_std,
-                val_loss + val_loss_std,
-                alpha=0.2,
-                color="y",
-            )
-
-        ax.plot(history["loss"], label="Training", color="b")
-        ax.plot(history["val_loss"], label="Validation", color='y')
+        ax.plot(history["loss"], label=train_label, color="b")
+        ax.plot(history["val_loss"], label=val_label, color="y")
         ax.legend()
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss")
@@ -1324,13 +1319,24 @@ class PostProcessor:
 
         return axs
 
-    def _init_uq_visualizer(self, model=None):
+    def _init_uq_visualizer(
+        self, model=None, idx=None, model_type=None, sort_by=None, direction=None
+    ):
         """Instantiate or update UQVisualizer with a fitted UQ model instance."""
         if model is None:
-            for m in self._models["Model"]:
-                if hasattr(m, "predict_with_uncertainty"):
-                    model = m
-                    break
+            if idx is not None or model_type is not None or sort_by is not None:
+                target_idx = self._get_idx(
+                    idx=idx,
+                    model_type=model_type,
+                    sort_by=sort_by,
+                    direction=direction,
+                )
+                model = self._models["Model"][target_idx]
+            else:
+                for m in self._models["Model"]:
+                    if hasattr(m, "predict_with_uncertainty"):
+                        model = m
+                        break
 
         if self._uq_visualizer is None or (model is not None and self._uq_visualizer.model is not model):
             self._uq_visualizer = UQVisualizer(
@@ -1339,7 +1345,17 @@ class PostProcessor:
             )
         return self._uq_visualizer
 
-    def uncertainty_visualization(self, visual: str, ax=None, model=None, **kwargs) -> Figure | Axes:
+    def uncertainty_visualization(
+        self,
+        visual: str,
+        ax=None,
+        model=None,
+        idx=None,
+        model_type=None,
+        sort_by=None,
+        direction=None,
+        **kwargs,
+    ) -> Figure | Axes:
         """
         Visualize uncertainty for supported UQ models.
 
@@ -1358,6 +1374,16 @@ class PostProcessor:
             The matplotlib axes to plot on. If ``None``, an axes object is created.
         model: pyMAISE model or None, default=None
             The model instance to visualize. If ``None``, the best model is used.
+        idx: int or None, default=None
+            The index in the :meth:`pyMAISE.PostProcessor.metrics` pandas.DataFrame.
+            If ``None``, then ``sort_by`` is used.
+        model_type: str or None, default=None
+            The model name to get (e.g. 'MCD', 'DE'). Will get the best model
+            predictions based on ``sort_by``.
+        sort_by: str or None, default=None
+            The metric to sort the pandas.DataFrame by.
+        direction: 'min', 'max', or None, default=None
+            The direction to ``sort_by``.
         **kwargs
             Additional keyword arguments passed to the specific visualizer method:
 
@@ -1377,20 +1403,27 @@ class PostProcessor:
         ax: matplotlib.pyplot.Axes
             The matplotlib axes containing the uncertainty visualization.
         """
-        vis = self._init_uq_visualizer(model)
+        vis = self._init_uq_visualizer(
+            model=model,
+            idx=idx,
+            model_type=model_type,
+            sort_by=sort_by,
+            direction=direction,
+        )
+        target_model = vis.model
 
         # Plot the visualization
         match visual:
             case "sorted_uncertainty" | "su":
                 feature = kwargs.get("feature", None) or kwargs.get("feature_idx", None)
                 show_members = kwargs.get("show_members", False)
-                return vis.sorted_uncertainty_plot(ax, model, feature, show_members)
+                return vis.sorted_uncertainty_plot(ax, target_model, feature, show_members)
             case "epistemic_aleatoric" | "ea":
-                return vis.epistemic_aleatoric_plot(ax, model, normalize=kwargs.get("normalize", False))
+                return vis.epistemic_aleatoric_plot(ax, target_model, normalize=kwargs.get("normalize", False))
             case "data_calibration" | "dc":
                 return vis.data_calibration_plot(
                     ax=ax,
-                    model=model,
+                    model=target_model,
                     sections=kwargs.pop("sections", 6),
                     plot_type=kwargs.pop("plot_type", "sorted_uncertainty"),
                     feature=kwargs.pop("feature", None),
