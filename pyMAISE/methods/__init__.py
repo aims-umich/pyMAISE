@@ -13,4 +13,4 @@ from ._rforest import RandomForest
 from ._ridge import RidgeRegression
 from ._stacking import Stacking
 from ._svm import SVM
-from .nn._nn_hypermodel import nnHyperModel
+from .nn import DeepEnsemble, DeepEnsembleHyperModel, MCDropout, MCDropoutHyperModel, nnHyperModel
