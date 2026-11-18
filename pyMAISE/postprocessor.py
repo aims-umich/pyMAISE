@@ -1417,7 +1417,9 @@ class PostProcessor:
             case "sorted_uncertainty" | "su":
                 feature = kwargs.get("feature", None) or kwargs.get("feature_idx", None)
                 show_members = kwargs.get("show_members", False)
-                return vis.sorted_uncertainty_plot(ax, target_model, feature, show_members)
+                return vis.sorted_uncertainty_plot(
+                    ax, target_model, feature, show_members, ylabel=kwargs.get("ylabel", None)
+                )
             case "epistemic_aleatoric" | "ea":
                 return vis.epistemic_aleatoric_plot(ax, target_model, normalize=kwargs.get("normalize", False))
             case "data_calibration" | "dc":

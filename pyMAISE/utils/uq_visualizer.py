@@ -40,6 +40,7 @@ class UQVisualizer:
         model=None,
         target: str | None = None,
         show_members: bool = False,
+        ylabel: str | None = None,
     ) -> plt.Axes:
         """
         Plot mean predictions sorted in ascending order along with epistemic
@@ -58,6 +59,8 @@ class UQVisualizer:
             target feature in target_names.
         show_members: bool, default=False
             If True, overlay individual ensemble member/pass predictions as dashed lines.
+        ylabel: str or None, default=None
+            The label for the y-axis. If None, defaults to "Prediction Value".
 
         Returns
         -------
@@ -162,7 +165,7 @@ class UQVisualizer:
         ax.plot(x, mean_sorted, lw=2, c="k", label="Mean")
         ax.legend()
         ax.set_title(f"Target: {target_feat}")
-        ax.set_ylabel("Prediction Value")   # TODO Majdi maybe wants this to be dynamic with target?
+        ax.set_ylabel(ylabel if ylabel is not None else "Prediction Value")
         ax.set_xlabel("Sample Index")
         return ax
 
@@ -345,7 +348,7 @@ class UQVisualizer:
             # Delegate to visualizer plot type for current section subplot
             match plot_type.lower():
                 case "sorted_uncertainty" | "su":
-                    self.sorted_uncertainty_plot(ax=sub_ax, model=sub_ensemble, target=f)
+                    self.sorted_uncertainty_plot(ax=sub_ax, model=sub_ensemble, target=f, ylabel=kwargs.get("ylabel", None))
                 case "epistemic_aleatoric" | "ea":
                     self.epistemic_aleatoric_plot(ax=sub_ax, model=sub_ensemble, normalize=normalize)
                 case _:

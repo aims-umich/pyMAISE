@@ -137,4 +137,5 @@ dmypy.json
 .claude/
 
 # IDE
+.idea/
 .idea
