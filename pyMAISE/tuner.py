@@ -646,9 +646,11 @@ class Tuner:
                 )
 
                 # Place parameter configurations in DataFrame and sort based on rank,
-                # save the top num_configs_saved to the data dictionary
+                # save the top num_configs_saved to the data dictionary. A stable
+                # sort keeps tied configurations in grid order so the selected
+                # configuration does not depend on the pandas version.
                 top_configs = pd.DataFrame(
-                    cv_results.sort_values("rank_test_score")["params"]
+                    cv_results.sort_values("rank_test_score", kind="stable")["params"]
                 )
 
                 search_data[model] = (

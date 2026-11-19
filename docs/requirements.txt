@@ -4,7 +4,7 @@ nbsphinx
 sphinx_rtd_theme
 sphinxcontrib.bibtex
 jupyter
-pandas
+pandas>=3
 numpy
 scikit-learn
 scikit-optimize
