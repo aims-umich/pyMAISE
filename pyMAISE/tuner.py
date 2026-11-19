@@ -20,6 +20,8 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 
+from pyMAISE.methods.nn import DeepEnsemble, DeepEnsembleHyperModel, MCDropoutHyperModel
+
 # scikit-optimize 0.9.0 uses np.int which was removed in numpy 1.24.
 # Patch before importing skopt so users aren't hit by the AttributeError.
 if not hasattr(np, "int"):
@@ -44,7 +46,7 @@ from pyMAISE.methods import (
     AdaBoost,
     ExtraTrees,
     MultiOutput,
-    Stacking,
+    Stacking, MCDropout,
 )
 from pyMAISE.utils import NNTuner, _try_clear
 
@@ -301,6 +303,12 @@ class Tuner:
         "Stacking": Stacking,
     }
 
+    supported_uq_models = {
+        "DE": DeepEnsembleHyperModel,
+        "MCD": MCDropoutHyperModel,
+        "NN": nnHyperModel
+    }
+
     def __init__(self, xtrain, ytrain, model_settings):
         self._xtrain = xtrain.values
         self._ytrain = ytrain.values
@@ -323,12 +331,32 @@ class Tuner:
                 self._models[model] = copy.deepcopy(
                     self.supported_classical_models[model]
                 )(parameters=parameters)
+
+            # Supported UQ models accept an addition parameter
+            elif model in self.supported_uq_models:
+                if parameters and "num_models" in parameters:
+                    n_samples = {"num_models": parameters.pop("num_models")}
+                elif "num_passes" in parameters:
+                    n_samples = {"num_passes": parameters.pop("num_passes")}
+                else:
+                    n_samples = {}
+
+                # Instantiate UQ HyperModel
+                self._models[model] = self.supported_uq_models[model](
+                    parameters=parameters,
+                    input_shape=self._xtrain.shape[1:],
+                    name=model,
+                    **n_samples,
+                )
+
+            # Other Neural Networks
             else:
                 self._models[model] = copy.deepcopy(nnHyperModel)(
                     parameters=parameters,
                     input_shape=self._xtrain.shape[1:],
                     name=model,
                 )
+
 
     # ===========================================================
     # Methods
@@ -555,8 +583,6 @@ class Tuner:
 
         data = {}
         for model in models:
-            print(f"Tuning {model}")
-
             # Run model
             estimator = self._models[model].regressor()
             if model_settings is not None and model in model_settings:
@@ -585,8 +611,6 @@ class Tuner:
         search_data = {}
         for model in models:
             if model in spaces:
-                print(f"  Tuning {model}")
-
                 # Run search method
                 search = search_method(
                     self._models[model].regressor(), spaces[model], **search_kwargs
@@ -622,9 +646,11 @@ class Tuner:
                 )
 
                 # Place parameter configurations in DataFrame and sort based on rank,
-                # save the top num_configs_saved to the data dictionary
+                # save the top num_configs_saved to the data dictionary. A stable
+                # sort keeps tied configurations in grid order so the selected
+                # configuration does not depend on the pandas version.
                 top_configs = pd.DataFrame(
-                    cv_results.sort_values("rank_test_score")["params"]
+                    cv_results.sort_values("rank_test_score", kind="stable")["params"]
                 )
 
                 search_data[model] = (

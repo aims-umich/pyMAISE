@@ -97,6 +97,7 @@ class nnHyperModel:
     layer_dict = {
         "Dense": DenseLayer,
         "Dropout": DropoutLayer,
+        "MCDropout": DropoutLayer,
         "LSTM": LSTMLayer,
         "GRU": GRULayer,
         "Conv1D": Conv1DLayer,

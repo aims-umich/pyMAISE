@@ -1,0 +1,502 @@
+import numpy as np
+import xarray as xr
+from sklearn.datasets import make_regression, make_classification
+from sklearn.model_selection import ShuffleSplit
+
+import pyMAISE as mai
+from pyMAISE import PostProcessor
+from pyMAISE.preprocessing import train_test_split, one_hot_encode
+from pyMAISE.methods.nn import DeepEnsemble
+
+
+def simulate_regression_data():
+    """Simulate small random dataset for regression testing."""
+    X, y = make_regression(n_samples=50, n_features=2, noise=0.1, random_state=42)
+    x_raw = xr.DataArray(X)
+    y_raw = xr.DataArray(y.reshape(-1, 1))
+    return train_test_split([x_raw, y_raw], test_size=0.3)
+
+
+def simulate_classification_data():
+    """Simulate small random dataset for classification testing."""
+    X, y = make_classification(n_samples=50, n_features=4, n_classes=2, random_state=42)
+    x_raw = xr.DataArray(X, dims=["samples", "features"])
+    # y needs to be an object for one_hot_encode
+    y_raw = xr.DataArray(y.reshape(-1, 1), dims=["samples", "variables"]).astype("object")
+    y_raw.coords["variables"] = ["class"]
+    y_enc = one_hot_encode(y_raw)
+    return train_test_split([x_raw, y_enc], test_size=0.3)
+
+
+def test_deep_ensemble_regression():
+    """Test DeepEnsemble end-to-end on a regression problem."""
+    global_settings = mai.init(
+        problem_type=mai.ProblemType.REGRESSION, 
+        random_state=42, 
+        num_configs_saved=1, 
+        verbosity=0
+    )
+    
+    data = simulate_regression_data()
+    xtrain, xtest, ytrain, ytest = data
+
+    parameters = {
+        "models": ["DE"],
+        "DE": {
+            "num_models": 3,
+            "structural_params": {
+                "Dense_1": {
+                    "units": mai.Choice([16, 32]),
+                    "activation": "relu",
+                },
+                "Dropout_1": {
+                    "rate": 0.2,
+                },
+                "Dense_2": {
+                    "units": ytrain.shape[-1],
+                    "activation": "linear",
+                }
+            },
+            "optimizer": "Adam",
+            "Adam": {
+                "learning_rate": mai.Choice([1e-3, 1e-2]),
+            },
+            "compile_params": {
+                "loss": "mean_absolute_error",
+            },
+            "fitting_params": {
+                "epochs": 2,
+                "batch_size": 16,
+            }
+        }
+    }
+
+    tuner = mai.Tuner(xtrain, ytrain, model_settings=parameters)
+    results = tuner.nn_grid_search(
+        objective="r2_score", 
+        cv=ShuffleSplit(n_splits=2, test_size=0.2, random_state=global_settings.random_state)
+    )
+    
+    post_processor = PostProcessor(data=data, model_configs=[results])
+    metrics = post_processor.metrics()
+    model = post_processor.get_model(model_type="DE")
+
+    assert isinstance(model, DeepEnsemble)
+    assert len(model.ensemble_models) == 3
+    assert metrics["Test R2"].notna().all()
+
+    # Test predicting with uncertainty
+    uncertainty_results = model.predict_with_uncertainty(xtest.values)
+    assert "predictions" in uncertainty_results
+    assert "mean" in uncertainty_results
+    assert "epistemic_var" in uncertainty_results
+    assert "aleatoric_var" in uncertainty_results
+    
+    assert uncertainty_results["predictions"].shape == (3, xtest.shape[0], ytrain.shape[-1])
+    assert uncertainty_results["mean"].shape == (xtest.shape[0], ytrain.shape[-1])
+    assert uncertainty_results["epistemic_var"].shape == (xtest.shape[0], ytrain.shape[-1])
+    assert uncertainty_results["aleatoric_var"] is None
+
+    # NLL Test
+    parameters["DE"]["compile_params"]["loss"] = "nll"
+    # # Need double the outputs for heteroscedastic NLL
+    parameters["DE"]["structural_params"]["Dense_2"]["units"] = ytrain.shape[-1] * 2
+    tuner_nll = mai.Tuner(xtrain, ytrain, model_settings=parameters)
+    results_nll = tuner_nll.nn_grid_search(objective="r2_score", cv=2)
+    pp_nll = PostProcessor(data=data, model_configs=[results_nll])
+    pp_nll.metrics()
+    model_nll = pp_nll.get_model(model_type="DE")
+    uncert_nll = model_nll.predict_with_uncertainty(xtest.values)
+    assert uncert_nll["aleatoric_var"] is not None
+    assert uncert_nll["aleatoric_var"].shape == (xtest.shape[0], ytrain.shape[-1])
+
+
+def test_deep_ensemble_classification():
+    """Test DeepEnsemble end-to-end on a classification problem."""
+    global_settings = mai.init(
+        problem_type=mai.ProblemType.CLASSIFICATION, 
+        random_state=42, 
+        num_configs_saved=1, 
+        verbosity=0
+    )
+    
+    data = simulate_classification_data()
+    xtrain, xtest, ytrain, ytest = data
+
+    parameters = {
+        "models": ["DE"],
+        "DE": {
+            "num_models": 2, # Test a different number of models
+            "structural_params": {
+                "Dense_1": {
+                    "units": mai.Choice([16, 32]),
+                    "activation": "relu",
+                },
+                "Dropout_1": {
+                    "rate": mai.Choice([0.1, 0.2]),
+                },
+                "Dense_2": {
+                    "units": ytrain.shape[-1], # 2 classes from one-hot encoding
+                    "activation": "softmax",
+                }
+            },
+            "optimizer": "Adam",
+            "Adam": {
+                "learning_rate": mai.Choice([1e-3, 1e-2]),
+            },
+            "compile_params": {
+                "loss": "categorical_crossentropy",
+            },
+            "fitting_params": {
+                "epochs": 2,
+                "batch_size": 16,
+            }
+        }
+    }
+
+    tuner = mai.Tuner(xtrain, ytrain, model_settings=parameters)
+    results = tuner.nn_grid_search(
+        objective="accuracy_score", 
+        cv=ShuffleSplit(n_splits=2, test_size=0.2, random_state=global_settings.random_state)
+    )
+    
+    post_processor = PostProcessor(data=data, model_configs=[results])
+    metrics = post_processor.metrics()
+    model = post_processor.get_model(model_type="DE")
+
+    assert isinstance(model, DeepEnsemble)
+    assert len(model.ensemble_models) == 2
+    assert metrics["Test Accuracy"].notna().all()
+
+    # Test predicting with uncertainty
+    uncertainty_results = model.predict_with_uncertainty(xtest.values)
+    assert uncertainty_results["predictions"].shape == (2, xtest.shape[0], ytrain.shape[-1])
+    assert uncertainty_results["mean"].shape == (xtest.shape[0], ytrain.shape[-1])
+    # Epistemic var for classification is 1D (entropy over classes)
+    assert uncertainty_results["epistemic_var"].shape == (xtest.shape[0],)
+    assert uncertainty_results["aleatoric_var"] is None
+
+
+def test_deep_ensemble_hyperparameter_propagation():
+    """Verify that the ensemble members are built using the best hyperparameters found by the tuner."""
+    global_settings = mai.init(
+        problem_type=mai.ProblemType.REGRESSION, 
+        random_state=42, 
+        num_configs_saved=1, 
+        verbosity=0
+    )
+    
+    data = simulate_regression_data()
+    xtrain, xtest, ytrain, ytest = data
+
+    parameters = {
+        "models": ["DE"],
+        "DE": {
+            "num_models": 2,
+            "structural_params": {
+                "Dense_1": {
+                    "units": mai.Choice([16, 64]),
+                    "activation": "relu",
+                },
+                "Dense_2": {
+                    "units": ytrain.shape[-1],
+                    "activation": "linear",
+                }
+            },
+            "optimizer": "Adam",
+            "Adam": {
+                "learning_rate": 0.001,
+            },
+            "compile_params": {
+                "loss": "mean_absolute_error",
+            },
+            "fitting_params": {
+                "epochs": 1,
+                "batch_size": 16,
+            }
+        }
+    }
+
+    tuner = mai.Tuner(xtrain, ytrain, model_settings=parameters)
+    results = tuner.nn_grid_search(
+        objective="r2_score", 
+        cv=ShuffleSplit(n_splits=2, test_size=0.2, random_state=global_settings.random_state)
+    )
+    
+    post_processor = PostProcessor(data=data, model_configs=[results])
+    _ = post_processor.metrics()
+    model = post_processor.get_model(model_type="DE")
+    
+    # Retrieve the chosen parameter dictionary from post_processor.get_params()
+    best_params_df = post_processor.get_params(model_type="DE")
+    
+    # Identify the key corresponding to Dense_1 units.
+    units_col = [c for c in best_params_df.columns if "Dense_1" in c and "units" in c][0]
+    chosen_units = int(best_params_df[units_col].values[0])
+    
+    # Verify that the chosen units are either 16 or 64
+    assert chosen_units in [16, 64]
+    
+    # Verify that each model in the ensemble has indeed been built with this value
+    assert len(model.ensemble_models) == 2
+    for member in model.ensemble_models:
+        # member.module_ is a _SequentialNet, and member.module_.net is nn.Sequential
+        # The first layer is _DenseBlock. We can access its 'linear' attribute
+        first_layer = member.module_.net[0]
+        assert hasattr(first_layer, "linear")
+        
+        # Check output features of the linear layer
+        assert first_layer.linear.out_features == chosen_units
+
+
+def test_deep_ensemble_postprocessor():
+    """Test all PostProcessor methods on DeepEnsemble."""
+    global_settings = mai.init(
+        problem_type=mai.ProblemType.REGRESSION, 
+        random_state=42, 
+        num_configs_saved=1, 
+        verbosity=0
+    )
+    
+    data = simulate_regression_data()
+    xtrain, xtest, ytrain, ytest = data
+
+    parameters = {
+        "models": ["DE"],
+        "DE": {
+            "num_models": 2,
+            "structural_params": {
+                "Dense_1": {
+                    "units": 8,
+                    "activation": "relu",
+                },
+                "Dense_2": {
+                    "units": ytrain.shape[-1],
+                    "activation": "linear",
+                }
+            },
+            "optimizer": "Adam",
+            "Adam": {
+                "learning_rate": 1e-3,
+            },
+            "compile_params": {
+                "loss": "mean_absolute_error",
+            },
+            "fitting_params": {
+                "epochs": 1,
+                "batch_size": 16,
+            }
+        }
+    }
+
+    tuner = mai.Tuner(xtrain, ytrain, model_settings=parameters)
+    results = tuner.nn_grid_search(
+        objective="r2_score", 
+        cv=ShuffleSplit(n_splits=2, test_size=0.2, random_state=global_settings.random_state)
+    )
+    
+    post_processor = PostProcessor(data=data, model_configs=[results])
+
+    # Test metrics()
+    metrics = post_processor.metrics()
+    assert metrics is not None
+    assert "Test MAE" in metrics.columns
+
+    # Test get_predictions()
+    train_preds, test_preds = post_processor.get_predictions(model_type="DE")
+    assert train_preds.shape == (xtrain.shape[0], ytrain.shape[-1])
+    assert test_preds.shape == (xtest.shape[0], ytest.shape[-1])
+
+    # Test get_params()
+    params = post_processor.get_params(model_type="DE")
+    assert params is not None
+
+    # Test get_model()
+    model = post_processor.get_model(model_type="DE")
+    assert isinstance(model, DeepEnsemble)
+
+    # Test print_model()
+    post_processor.print_model(model_type="DE")
+
+    # Test diagonal_validation_plot()
+    ax_diag = post_processor.diagonal_validation_plot(model_type="DE")
+    assert ax_diag is not None
+
+    # Test validation_plot()
+    ax_val = post_processor.validation_plot(model_type="DE")
+    assert ax_val is not None
+
+    # Test nn_learning_plot()
+    ax_learn = post_processor.nn_learning_plot(model_type="DE")
+    assert ax_learn is not None
+
+
+def test_deep_ensemble_pickle():
+    """ Verify DeepEnsemble can be saved and reloaded via pickle with no custom save/load methods."""
+    import pickle
+
+    mai.init(
+        problem_type=mai.ProblemType.REGRESSION,
+        random_state=42,
+        num_configs_saved=1,
+        verbosity=0,
+    )
+
+    data = simulate_regression_data()
+    xtrain, xtest, ytrain, ytest = data
+
+    parameters = {
+        "models": ["DE"],
+        "DE": {
+            "num_models": 2,
+            "structural_params": {
+                "Dense_1": {
+                    "units": 8,
+                    "activation": "relu",
+                },
+                "Dense_2": {
+                    "units": ytrain.shape[-1],
+                    "activation": "linear",
+                },
+            },
+            "optimizer": "Adam",
+            "Adam": {
+                "learning_rate": 1e-3,
+            },
+            "compile_params": {
+                "loss": "mean_absolute_error",
+            },
+            "fitting_params": {
+                "epochs": 1,
+                "batch_size": 16,
+            },
+        },
+    }
+
+    tuner = mai.Tuner(xtrain, ytrain, model_settings=parameters)
+    results = tuner.nn_grid_search(objective="r2_score", cv=2)
+
+    post_processor = PostProcessor(data=data, model_configs=[results])
+    post_processor.metrics()
+    model = post_processor.get_model(model_type="DE")
+
+    # Predictions before picking
+    original_preds = model.predict(xtest.values)
+    original_uncertainty = model.predict_with_uncertainty(xtest.values)
+
+    # Round-trip through pickle
+    pickled = pickle.dumps(model)
+    reloaded_model = pickle.loads(pickled)
+
+    assert isinstance(reloaded_model, DeepEnsemble)
+    assert len(reloaded_model.ensemble_models) == len(model.ensemble_models)
+
+    # Reloaded predictions must match the original exactly
+    reloaded_preds = reloaded_model.predict(xtest.values)
+    np.testing.assert_allclose(reloaded_preds, original_preds)
+
+    reloaded_uncertainty = reloaded_model.predict_with_uncertainty(xtest.values)
+    np.testing.assert_allclose(
+        reloaded_uncertainty["mean"], original_uncertainty["mean"]
+    )
+    np.testing.assert_allclose(
+        reloaded_uncertainty["epistemic_var"], original_uncertainty["epistemic_var"]
+    )
+
+    # module_ property (added for skorch-style compatibility) should also
+    # survive the round-trip, since downstream PostProcessor code relies on it.
+    assert reloaded_model.module_ is not None
+
+
+def test_ensemble_uncertainty_plot():
+    """Test PostProcessor.ensemble_uncertainty_plot for both regression and classification."""
+    import matplotlib.pyplot as plt
+
+    # 1. Regression test
+    global_settings = mai.init(
+        problem_type=mai.ProblemType.REGRESSION,
+        random_state=42,
+        num_configs_saved=1,
+        verbosity=0
+    )
+    data_reg = simulate_regression_data()
+    xtrain, xtest, ytrain, ytest = data_reg
+
+    parameters_reg = {
+        "models": ["DE"],
+        "DE": {
+            "num_models": 2,
+            "structural_params": {
+                "Dense_1": {"units": 8, "activation": "relu"},
+                "Dense_2": {"units": ytrain.shape[-1], "activation": "linear"}
+            },
+            "optimizer": "Adam",
+            "Adam": {"learning_rate": 1e-3},
+            "compile_params": {"loss": "mean_absolute_error"},
+            "fitting_params": {"epochs": 1, "batch_size": 16}
+        }
+    }
+
+    tuner_reg = mai.Tuner(xtrain, ytrain, model_settings=parameters_reg)
+    results_reg = tuner_reg.nn_grid_search(objective="r2_score", cv=2)
+    post_processor_reg = PostProcessor(data=data_reg, model_configs=[results_reg])
+    post_processor_reg.metrics() # Populate metrics columns
+
+    # Run plot tests (with and without pre-fitted model)
+    fig, ax = plt.subplots()
+    post_processor_reg.uncertainty_visualization("su", ax=ax)
+    post_processor_reg.uncertainty_visualization("su", ax=ax, show_members=True)
+    post_processor_reg.uncertainty_visualization("ea", ax=ax)
+    post_processor_reg.uncertainty_visualization("dc", sections=4, plot_type="su")
+    post_processor_reg.uncertainty_visualization("dc", sections=4, plot_type="ea")
+
+    # Pre-fitted model test
+    model_reg = post_processor_reg.get_model(model_type="DE")
+    post_processor_reg.uncertainty_visualization("su", ax=ax, model=model_reg, show_members=True)
+    post_processor_reg.uncertainty_visualization("ea", ax=ax, model=model_reg)
+    post_processor_reg.uncertainty_visualization("dc", sections=4, model=model_reg)
+    plt.close("all")
+
+    # 2. Classification test
+    global_settings = mai.init(
+        problem_type=mai.ProblemType.CLASSIFICATION,
+        random_state=42,
+        num_configs_saved=1,
+        verbosity=0
+    )
+    data_cls = simulate_classification_data()
+    xtrain, xtest, ytrain, ytest = data_cls
+
+    parameters_cls = {
+        "models": ["DE"],
+        "DE": {
+            "num_models": 2,
+            "structural_params": {
+                "Dense_1": {"units": 8, "activation": "relu"},
+                "Dense_2": {"units": ytrain.shape[-1], "activation": "softmax"}
+            },
+            "optimizer": "Adam",
+            "Adam": {"learning_rate": 1e-3},
+            "compile_params": {"loss": "categorical_crossentropy"},
+            "fitting_params": {"epochs": 1, "batch_size": 16}
+        }
+    }
+
+    tuner_cls = mai.Tuner(xtrain, ytrain, model_settings=parameters_cls)
+    results_cls = tuner_cls.nn_grid_search(objective="accuracy_score", cv=2)
+    post_processor_cls = PostProcessor(data=data_cls, model_configs=[results_cls])
+    post_processor_cls.metrics() # Populate metrics columns
+
+    fig, ax = plt.subplots()
+    post_processor_cls.uncertainty_visualization("su", ax=ax)
+    post_processor_cls.uncertainty_visualization("ea", ax=ax)
+    plt.close(fig)
+
+
+if __name__ == "__main__":
+    test_deep_ensemble_regression()
+    test_deep_ensemble_classification()
+    test_deep_ensemble_hyperparameter_propagation()
+    test_deep_ensemble_postprocessor()
+    test_deep_ensemble_pickle()
+    test_ensemble_uncertainty_plot()

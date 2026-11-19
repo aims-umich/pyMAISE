@@ -18,7 +18,7 @@ setup(
     version=version,
     packages=find_packages(include=["pyMAISE", "pyMAISE.*"]),
     install_requires=[
-        "pandas",
+        "pandas>=3",
         "numpy>=2.1",
         "scikit-learn",
         "scikit-optimize==0.9.0",
